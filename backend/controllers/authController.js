@@ -1,7 +1,8 @@
 // Purpose: Handle admin authentication actions such as login (and registration if needed).
 const authService = require('../services/authService');
+const AppError = require('../utils/AppError');
 
-async function registerOwner(req, res) {
+async function registerOwner(req, res, next) {
   try {
     const {
       name,
@@ -14,10 +15,11 @@ async function registerOwner(req, res) {
     } = req.body;
 
     if (!name || !email || !password || !pendingRestaurantName || !pendingRestaurantAddress) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, email, password, restaurant name, and restaurant address are required',
-      });
+      throw new AppError(
+        'Name, email, password, restaurant name, and restaurant address are required',
+        400,
+        'MISSING_REQUIRED_FIELDS'
+      );
     }
 
     const user = await authService.registerOwner({
@@ -32,32 +34,20 @@ async function registerOwner(req, res) {
 
     return res.status(201).json({ success: true, user });
   } catch (err) {
-    if (err.message === 'Email already registered') {
-      return res.status(409).json({ success: false, message: err.message });
-    }
-    return res.status(500).json({ success: false, message: err.message });
+    return next(err);
   }
 }
 
-async function loginUser(req, res) {
+async function loginUser(req, res, next) {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required',
-      });
+      throw new AppError('Email and password are required', 400, 'MISSING_CREDENTIALS');
     }
     const result = await authService.loginUser({ email, password });
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
-    if (err.message === 'Invalid email or password') {
-      return res.status(401).json({ success: false, message: err.message });
-    }
-    if (err.message === 'Account is not approved') {
-      return res.status(403).json({ success: false, message: err.message });
-    }
-    return res.status(500).json({ success: false, message: err.message });
+    return next(err);
   }
 }
 
