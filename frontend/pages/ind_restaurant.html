@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Restaurant Tables - Admin</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+
+<body class="dashboard-page">
+
+    <ul id="manageDropdown" class="dropdown-content">
+        <li><a href="owners.html">Manage Owners</a></li>
+        <li><a href="#restaurants-section">Manage Restaurants</a></li>
+        <li><a href="#restaurants-section">Set Tables Count</a></li>
+    </ul>
+
+    <ul id="adminDropdown" class="dropdown-content">
+        <li><a href="pending_owners.html">Owners</a></li>
+        <li><a href="restaurants.html">Restaurants</a></li>
+        <li class="divider" tabindex="-1"></li>
+        <li><a href="#!" id="logoutDropdownBtn">Logout</a></li>
+    </ul>
+
+    <nav class="teal darken-2">
+        <div class="nav-wrapper container">
+            <a href="admin-dashboard.html" class="brand-logo">Admin</a>
+
+            <ul class="right hide-on-med-and-down">
+                <li><a href="admin-dashboard.html">Dashboard</a></li>
+
+                <li>
+                    <a class="dropdown-trigger" href="#!" data-target="manageDropdown">
+                        Manage
+                        <i class="material-icons right">arrow_drop_down</i>
+                    </a>
+                </li>
+
+                <li>
+                    <a class="dropdown-trigger" href="#!" data-target="adminDropdown">
+                        Admin
+                        <i class="material-icons right">arrow_drop_down</i>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container section">
+
+        <!-- Top actions row -->
+        <div class="restaurant-top-actions">
+            <a href="restaurants.html" class="btn-flat">
+                <i class="material-icons left">arrow_back</i>Back to Restaurants
+            </a>
+
+            <button id="viewMenuBtn" class="btn teal darken-2">
+                View Menu
+            </button>
+        </div>
+
+        <!-- Title -->
+        <h4 id="restaurantDetailsTitle">Restaurant Tables</h4>
+        <!-- Tables -->
+        <div class="row" id="restaurantTablesContainer">
+            <div class="col s12 center-align">
+                Loading tables...
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/admin.js"></script>
+</body>
+
+</html>

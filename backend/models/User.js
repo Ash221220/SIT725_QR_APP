@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Restaurant',
     },
+    pendingRestaurantName: { type: String },
+    pendingRestaurantAddress: { type: String },
+    pendingRestaurantPhone: { type: String },
+    pendingRestaurantEmail: { type: String },
   },
   { timestamps: true }
 );
