@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (profileData.role === "super_admin" || profileData.role === "admin") {
         window.location.href = "../pages/admin-dashboard.html";
       } else if (profileData.role === "owner") {
-        M.toast({ html: "Redirect to Owner Dashboard" });
+        window.location.href = "../pages/owner-dashboard.html";
       } else {
         throw new Error("Unauthorized role");
       }

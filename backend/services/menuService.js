@@ -2,11 +2,15 @@
 const mongoose = require('mongoose');
 const MenuItem = require('../models/MenuItem');
 
-async function createMenuItem(restaurantId, { name, category, description, price, image, isAvailable }) {
+async function createMenuItem(
+  restaurantId,
+  { name, category, dietaryType, description, price, image, isAvailable }
+) {
   const item = await MenuItem.create({
     restaurantId,
     name,
     category,
+    dietaryType,
     description,
     price,
     image,
@@ -23,7 +27,7 @@ async function updateMenuItem(restaurantId, itemId, updates) {
   if (!item) {
     throw new Error('Menu item not found');
   }
-  const allowed = ['name', 'category', 'description', 'price', 'image', 'isAvailable'];
+  const allowed = ['name', 'category', 'dietaryType', 'description', 'price', 'image', 'isAvailable'];
   allowed.forEach((key) => {
     if (updates[key] !== undefined) {
       item[key] = updates[key];

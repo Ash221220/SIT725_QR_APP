@@ -73,13 +73,14 @@ async function getMenuByRestaurant(req, res) {
 async function createMenuItem(req, res) {
   try {
     const owner = await getOwnerContext(req.user.id);
-    const { name, category, description, price, image, isAvailable } = req.body;
+    const { name, category, dietaryType, description, price, image, isAvailable } = req.body;
     if (!name || price === undefined) {
       return res.status(400).json({ success: false, message: 'Name and price are required' });
     }
     const item = await menuService.createMenuItem(owner.restaurantId, {
       name,
       category,
+      dietaryType,
       description,
       price,
       image,
