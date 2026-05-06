@@ -8,6 +8,7 @@ const authRoutes = require('./routes/authRoutes');
 const restaurantRoutes = require('./routes/restaurantRoutes');
 const menuRoutes = require('./routes/menuRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const { errorHandler } = require('./middleware/errorMiddleware');
 
 dotenv.config();
 connectDB();
@@ -28,6 +29,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/admin', adminRoutes);
+app.use(errorHandler);
 
 // Default 5001: macOS often binds 5000 (e.g. AirPlay Receiver).
 const PORT = process.env.PORT || 5001;

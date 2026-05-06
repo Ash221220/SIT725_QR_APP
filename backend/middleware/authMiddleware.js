@@ -1,21 +1,22 @@
 
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const AppError = require('../utils/AppError');
 
 async function protect(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Not authorized' });
+    return next(new AppError('Not authorized', 401, 'UNAUTHORIZED'));
   }
   const token = authHeader.split('Bearer ')[1]?.trim();
   if (!token) {
-    return res.status(401).json({ success: false, message: 'Not authorized' });
+    return next(new AppError('Not authorized', 401, 'UNAUTHORIZED'));
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select('_id role email name');
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Not authorized' });
+      return next(new AppError('Not authorized', 401, 'UNAUTHORIZED'));
     }
     req.user = {
       id: String(user._id),
@@ -23,9 +24,9 @@ async function protect(req, res, next) {
       email: user.email,
       name: user.name,
     };
-    next();
+    return next();
   } catch {
-    return res.status(401).json({ success: false, message: 'Not authorized' });
+    return next(new AppError('Not authorized', 401, 'UNAUTHORIZED'));
   }
 }
 
