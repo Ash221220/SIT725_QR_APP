@@ -1,12 +1,30 @@
+const mongoose = require('mongoose');
+
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
     return next(err);
   }
 
-  const statusCode = err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
+  let statusCode = err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
+  let { message } = err;
+
+  // Mongoose schema validation failure (e.g. required field missing, wrong type)
+  if (err instanceof mongoose.Error.ValidationError) {
+    statusCode = 400;
+    message = Object.values(err.errors)
+      .map((e) => e.message)
+      .join(', ');
+  }
+
+  // Mongoose cast failure (e.g. non-ObjectId string passed to an ObjectId field)
+  if (err instanceof mongoose.Error.CastError) {
+    statusCode = 400;
+    message = `Invalid value for field '${err.path}'`;
+  }
+
   const body = {
     success: false,
-    message: statusCode === 500 ? 'Internal server error' : err.message,
+    message: statusCode >= 500 ? 'Internal server error' : message,
   };
 
   if (err.code) {
