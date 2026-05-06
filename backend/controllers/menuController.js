@@ -1,7 +1,4 @@
 // Purpose: Implement menu item business logic (create, read, update, delete, availability).
-const mongoose = require('mongoose');
-const MenuItem = require('../models/MenuItem');
-const Table = require('../models/Table');
 const User = require('../models/User');
 const menuService = require('../services/menuService');
 const AppError = require('../utils/AppError');
@@ -23,7 +20,7 @@ async function getOwnerContext(userId) {
 async function getOwnerMenu(req, res, next) {
   try {
     const owner = await getOwnerContext(req.user.id);
-    const menu = await MenuItem.find({ restaurantId: owner.restaurantId }).sort({ createdAt: 1 });
+    const menu = await menuService.getMenuByOwner(owner.restaurantId);
     return res.status(200).json({ success: true, menu });
   } catch (error) {
     return next(error);
@@ -33,7 +30,7 @@ async function getOwnerMenu(req, res, next) {
 async function getOwnerTables(req, res, next) {
   try {
     const owner = await getOwnerContext(req.user.id);
-    const tables = await Table.find({ restaurantId: owner.restaurantId }).sort({ tableNumber: 1 });
+    const tables = await menuService.getTablesByOwner(owner.restaurantId);
     return res.status(200).json({ success: true, tables });
   } catch (error) {
     return next(error);
@@ -43,10 +40,7 @@ async function getOwnerTables(req, res, next) {
 async function getMenuByRestaurant(req, res, next) {
   try {
     const { restaurantId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
-      throw new AppError('Invalid restaurant id', 400);
-    }
-    const menu = await MenuItem.find({ restaurantId }).sort({ createdAt: 1 });
+    const menu = await menuService.getMenuByRestaurantId(restaurantId);
     return res.status(200).json({ success: true, menu });
   } catch (error) {
     return next(error);

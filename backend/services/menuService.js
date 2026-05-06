@@ -1,7 +1,23 @@
-// Purpose: Encapsulate menu item business logic for create, update, delete, and availability toggling.
+// Purpose: Encapsulate menu item business logic for create, read, update, delete, and availability toggling.
 const mongoose = require('mongoose');
 const MenuItem = require('../models/MenuItem');
+const Table = require('../models/Table');
 const AppError = require('../utils/AppError');
+
+async function getMenuByRestaurantId(restaurantId) {
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    throw new AppError('Invalid restaurant id', 400);
+  }
+  return MenuItem.find({ restaurantId }).sort({ createdAt: 1 });
+}
+
+async function getMenuByOwner(restaurantId) {
+  return MenuItem.find({ restaurantId }).sort({ createdAt: 1 });
+}
+
+async function getTablesByOwner(restaurantId) {
+  return Table.find({ restaurantId }).sort({ tableNumber: 1 });
+}
 
 async function createMenuItem(
   restaurantId,
@@ -62,4 +78,12 @@ async function setAvailability(restaurantId, itemId, isAvailable) {
   return item;
 }
 
-module.exports = { createMenuItem, updateMenuItem, deleteMenuItem, setAvailability };
+module.exports = {
+  getMenuByRestaurantId,
+  getMenuByOwner,
+  getTablesByOwner,
+  createMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+  setAvailability,
+};
