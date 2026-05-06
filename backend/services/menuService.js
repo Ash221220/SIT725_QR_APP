@@ -1,6 +1,7 @@
 // Purpose: Encapsulate menu item business logic for create, update, delete, and availability toggling.
 const mongoose = require('mongoose');
 const MenuItem = require('../models/MenuItem');
+const AppError = require('../utils/AppError');
 
 async function createMenuItem(
   restaurantId,
@@ -21,11 +22,11 @@ async function createMenuItem(
 
 async function updateMenuItem(restaurantId, itemId, updates) {
   if (!mongoose.Types.ObjectId.isValid(itemId)) {
-    throw new Error('Invalid item id');
+    throw new AppError('Invalid item id', 400);
   }
   const item = await MenuItem.findOne({ _id: itemId, restaurantId });
   if (!item) {
-    throw new Error('Menu item not found');
+    throw new AppError('Menu item not found', 404);
   }
   const allowed = ['name', 'category', 'dietaryType', 'description', 'price', 'image', 'isAvailable'];
   allowed.forEach((key) => {
@@ -39,22 +40,22 @@ async function updateMenuItem(restaurantId, itemId, updates) {
 
 async function deleteMenuItem(restaurantId, itemId) {
   if (!mongoose.Types.ObjectId.isValid(itemId)) {
-    throw new Error('Invalid item id');
+    throw new AppError('Invalid item id', 400);
   }
   const item = await MenuItem.findOneAndDelete({ _id: itemId, restaurantId });
   if (!item) {
-    throw new Error('Menu item not found');
+    throw new AppError('Menu item not found', 404);
   }
   return item;
 }
 
 async function setAvailability(restaurantId, itemId, isAvailable) {
   if (!mongoose.Types.ObjectId.isValid(itemId)) {
-    throw new Error('Invalid item id');
+    throw new AppError('Invalid item id', 400);
   }
   const item = await MenuItem.findOne({ _id: itemId, restaurantId });
   if (!item) {
-    throw new Error('Menu item not found');
+    throw new AppError('Menu item not found', 404);
   }
   item.isAvailable = isAvailable;
   await item.save();
