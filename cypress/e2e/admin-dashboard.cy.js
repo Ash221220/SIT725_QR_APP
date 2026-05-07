@@ -35,7 +35,7 @@ function setAdminSession(role = 'super_admin') {
 function stubPendingOwners(owners = []) {
   cy.intercept('GET', '/api/admin/owners/pending', {
     statusCode: 200,
-    body: owners,
+    body: { owners },
   }).as('pendingOwners');
 }
 
@@ -201,8 +201,6 @@ describe('Admin dashboard — welcome message', () => {
 });
 
 // ─── 3d. Pending owners — loaded from API ─────────────────────────────────────
-// NOTE: stubs must be registered BEFORE cy.visit() so they intercept the
-// API calls that admin.js fires immediately on DOMContentLoaded.
 
 describe('Admin dashboard — pending owners list', () => {
   function visitWithPendingOwners(owners) {
@@ -219,20 +217,20 @@ describe('Admin dashboard — pending owners list', () => {
     cy.wait('@pendingOwners');
   }
 
-  it('renders a card for each pending owner', () => {
+  it('renders a row for each pending owner', () => {
     visitWithPendingOwners(FAKE_OWNERS);
-    cy.get('#pendingOwnersCards .card').should('have.length', 2);
+    cy.get('#pendingOwnersTable tr').should('have.length', 2);
   });
 
-  it('shows owner name and email in the card', () => {
+  it('shows owner name and email in the table', () => {
     visitWithPendingOwners(FAKE_OWNERS);
-    cy.get('#pendingOwnersCards').should('contain.text', 'Alice Owner');
-    cy.get('#pendingOwnersCards').should('contain.text', 'alice@owner.com');
+    cy.get('#pendingOwnersTable').should('contain.text', 'Alice Owner');
+    cy.get('#pendingOwnersTable').should('contain.text', 'alice@owner.com');
   });
 
-  it('shows Approve and Deny buttons on each card', () => {
+  it('shows Approve and Deny buttons on each row', () => {
     visitWithPendingOwners(FAKE_OWNERS);
-    cy.get('#pendingOwnersCards .card').first().within(() => {
+    cy.get('#pendingOwnersTable tr').first().within(() => {
       cy.contains('button', 'Approve').should('be.visible');
       cy.contains('button', 'Deny').should('be.visible');
     });
@@ -240,7 +238,7 @@ describe('Admin dashboard — pending owners list', () => {
 
   it('shows "No pending owners found" when list is empty', () => {
     visitWithPendingOwners([]);
-    cy.get('#pendingOwnersCards').should('contain.text', 'No pending owners found');
+    cy.get('#pendingOwnersTable').should('contain.text', 'No pending owners found');
   });
 
   it('shows an error message when pending owners API fails', () => {
@@ -258,7 +256,7 @@ describe('Admin dashboard — pending owners list', () => {
       },
     });
     cy.wait('@pendingOwners');
-    cy.get('#pendingOwnersCards').should('contain.text', 'Unauthorized');
+    cy.get('#pendingOwnersTable').should('contain.text', 'Unauthorized');
   });
 });
 
@@ -340,10 +338,7 @@ describe('Admin dashboard — owner actions', () => {
       },
     });
     cy.wait('@pendingOwners');
-    // Wait for the DOM to finish rendering the cards before each test proceeds.
-    // cy.wait('@pendingOwners') resolves when the network response is received,
-    // but renderPendingOwnerCards() runs asynchronously after that.
-    cy.get('#pendingOwnersCards .card').should('have.length', 2);
+    cy.get('#pendingOwnersTable tr').should('have.length', 2);
   });
 
   it('calls PATCH /approve when Approve button is clicked', () => {
@@ -353,7 +348,7 @@ describe('Admin dashboard — owner actions', () => {
     }).as('approveOwner');
     stubPendingOwners([FAKE_OWNERS[1]]);
 
-    cy.get('#pendingOwnersCards .card').first()
+    cy.get('#pendingOwnersTable tr').first()
       .contains('button', 'Approve')
       .click();
 
@@ -367,7 +362,7 @@ describe('Admin dashboard — owner actions', () => {
     }).as('rejectOwner');
     stubPendingOwners([FAKE_OWNERS[1]]);
 
-    cy.get('#pendingOwnersCards .card').first()
+    cy.get('#pendingOwnersTable tr').first()
       .contains('button', 'Deny')
       .click({ force: true });
 
