@@ -62,11 +62,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const pendingOwnerSearch = document.getElementById("pendingOwnerSearch");
   if (pendingOwnerSearch) {
     pendingOwnerSearch.addEventListener("input", () => {
-      renderPendingOwnerCards(pendingOwnersList);
+      renderPendingOwners(pendingOwnersList);
     });
   }
 
-  if (document.getElementById("pendingOwnerCards")) {
+  if (document.getElementById("pendingOwnersCards")) {
     loadPendingOwners();
   }
 
@@ -119,10 +119,10 @@ async function loadPendingOwners() {
   if (!cardsContainer) return;
 
   try {
-    const owners = await apiRequest("/admin/owners/pending");
-    pendingOwnersList = owners || [];
+    const response = await apiRequest("/admin/owners/pending");
+    pendingOwnersList = response.owners || [];
 
-    renderPendingOwnerCards(pendingOwnersList);
+    renderPendingOwners(pendingOwnersList);
 
   } catch (error) {
     cardsContainer.innerHTML = `
@@ -310,7 +310,15 @@ function renderOwners(owners) {
     return;
   }
 
-  tableBody.innerHTML = filteredOwners.map(owner => `
+  tableBody.innerHTML = filteredOwners.map(owner => {
+    const ownerRowId = ownerIdFromDoc(owner);
+
+    const actionCell =
+      owner.status === "disabled"
+        ? `<button type="button" class="btn-small green action-btn" onclick="restoreOwnerAccess('${escapeQuotes(ownerRowId)}')"${!ownerRowId ? " disabled" : ""}>Restore Access</button>`
+        : `<button type="button" class="btn-small red action-btn" onclick="removeOwnerAccess('${escapeQuotes(ownerRowId)}')"${!ownerRowId ? " disabled" : ""}>Remove Access</button>`;
+
+    return `
     <tr>
       <td>${owner.name || "-"}</td>
       <td>${owner.email || "-"}</td>
@@ -324,16 +332,10 @@ function renderOwners(owners) {
         </span>
       </td>
       <td>${owner.restaurantName || owner.restaurant?.name || "-"}</td>
-      <td>
-        <button
-          class="btn-small red action-btn"
-          onclick="removeOwnerAccess('${owner._id}')"
-        >
-          Remove Access
-        </button>
-      </td>
+      <td>${actionCell}</td>
     </tr>
-  `).join("");
+`;
+  }).join("");
 }
 
 function getQueryParam(paramName) {
@@ -485,11 +487,14 @@ async function rejectOwner(ownerId) {
 }
 
 async function removeOwnerAccess(ownerId) {
+  const id = sanitizeOwnerActionId(ownerId);
+  if (!id) return;
+
   const confirmed = confirm("Are you sure you want to remove this owner's access?");
   if (!confirmed) return;
 
   try {
-    await apiRequest(`/admin/owners/${ownerId}/disable`, "PATCH");
+    await apiRequest(`/admin/owners/${id}/disable`, "PATCH");
     M.toast({ html: "Owner access removed successfully" });
 
     if (document.getElementById("ownersTable")) {
@@ -498,6 +503,39 @@ async function removeOwnerAccess(ownerId) {
   } catch (error) {
     M.toast({ html: error.message });
   }
+}
+
+async function restoreOwnerAccess(ownerId) {
+  const id = sanitizeOwnerActionId(ownerId);
+  if (!id) return;
+
+  const confirmed = confirm("Restore login and menu access for this owner?");
+  if (!confirmed) return;
+
+  try {
+    await apiRequest(`/admin/owners/${id}/enable`, "PATCH");
+    M.toast({ html: "Owner access restored" });
+
+    if (document.getElementById("ownersTable")) {
+      loadOwners();
+    }
+  } catch (error) {
+    M.toast({ html: error.message });
+  }
+}
+
+function ownerIdFromDoc(owner) {
+  const raw = owner && (owner._id != null ? owner._id : owner.id);
+  return raw != null ? String(raw) : "";
+}
+
+function sanitizeOwnerActionId(ownerId) {
+  const id = String(ownerId ?? "").trim();
+  if (!id || id === "undefined") {
+    M.toast({ html: "Missing owner ID — reload the owners list." });
+    return null;
+  }
+  return id;
 }
 
 function openTablesModal(restaurantId, restaurantName) {
@@ -559,5 +597,5 @@ async function saveTables() {
 }
 
 function escapeQuotes(text) {
-  return String(text).replace(/'/g, "\\'");
+  return String(text || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }

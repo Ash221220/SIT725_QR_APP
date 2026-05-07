@@ -81,6 +81,26 @@ async function disableOwner(ownerId) {
   return user;
 }
 
+async function enableOwner(ownerId) {
+  if (!mongoose.Types.ObjectId.isValid(ownerId)) {
+    throw new AppError('Invalid owner id', 400, 'INVALID_OWNER_ID');
+  }
+  const user = await User.findById(ownerId);
+  if (!user) {
+    throw new AppError('Owner not found', 404, 'OWNER_NOT_FOUND');
+  }
+  if (user.role !== 'owner') {
+    throw new AppError('User is not an owner', 400, 'NOT_OWNER_ROLE');
+  }
+  if (user.status !== 'disabled') {
+    throw new AppError('Owner account is not disabled', 400, 'OWNER_NOT_DISABLED');
+  }
+
+  user.status = 'approved';
+  await user.save();
+  return user;
+}
+
 async function getAllRestaurants() {
   return Restaurant.find().populate('ownerId', 'name email');
 }
@@ -133,6 +153,7 @@ module.exports = {
   approveOwner,
   rejectOwner,
   disableOwner,
+  enableOwner,
   getAllRestaurants,
   setTables,
   getTablesByRestaurant,

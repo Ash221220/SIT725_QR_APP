@@ -17,6 +17,7 @@
     { "key": "adminToken", "value": "" },
     { "key": "ownerToken", "value": "" },
     { "key": "pendingOwnerId", "value": "" },
+    { "key": "ownerMongoId", "value": "" },
     { "key": "restaurantId", "value": "" },
     { "key": "menuItemId", "value": "" }
   ],
@@ -148,6 +149,60 @@
               { "key": "Content-Type", "value": "application/json" }
             ],
             "url": "{{baseUrl}}/api/admin/owners/{{pendingOwnerId}}/approve"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/admin/owners",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/admin/owners"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const owners = json.owners || [];",
+                  "  const email = (pm.collectionVariables.get('ownerEmail') || '').trim();",
+                  "  let target = owners.find(o => (o.email || '').trim() === email);",
+                  "  if (!target && owners.length > 0) {",
+                  "    target = owners.find(o => o.status === 'approved') || owners[0];",
+                  "  }",
+                  "  const id = target && target._id != null ? String(target._id) : '';",
+                  "  pm.collectionVariables.set('ownerMongoId', id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PATCH /api/admin/owners/:id/disable",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/admin/owners/{{ownerMongoId}}/disable"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/admin/owners/:id/enable",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/admin/owners/{{ownerMongoId}}/enable"
           },
           "response": []
         },
