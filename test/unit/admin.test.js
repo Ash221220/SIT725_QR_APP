@@ -25,6 +25,7 @@ const request       = require('supertest');
 const { expect }    = require('chai');
 const sinon         = require('sinon');
 const generateToken = require('../../backend/utils/generateToken');
+const AppError      = require('../../backend/utils/AppError');
 
 const app          = require('../../backend/server');
 const adminService = require('../../backend/services/adminService');
@@ -171,20 +172,55 @@ describe('PATCH /api/admin/owners/:id/approve', () => {
     expect(res.body.user.status).to.equal('approved');
   });
 
-  it('should return 500 when the owner is not found', async () => {
+  it('should return 404 when the owner is not found', async () => {
     stubAdminAuth();
-    sinon.stub(adminService, 'approveOwner').rejects(new Error('Owner not found'));
+    sinon.stub(adminService, 'approveOwner')
+      .rejects(new AppError('Owner not found', 404, 'OWNER_NOT_FOUND'));
 
     const res = await request(app)
       .patch(`/api/admin/owners/${FAKE_OWNER_ID}/approve`)
       .set('Authorization', `Bearer ${makeAdminToken()}`);
 
-    expect(res.status).to.equal(500);
+    expect(res.status).to.equal(404);
+  });
+
+  it('should return 400 when the owner id is invalid', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'approveOwner')
+      .rejects(new AppError('Invalid owner id', 400, 'INVALID_OWNER_ID'));
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/approve`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('should return 409 when the owner already has a linked restaurant', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'approveOwner')
+      .rejects(new AppError('Owner already has a linked restaurant', 409, 'OWNER_ALREADY_LINKED'));
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/approve`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(409);
   });
 
   it('should return 401 with no token', async () => {
     const res = await request(app).patch(`/api/admin/owners/${FAKE_OWNER_ID}/approve`);
     expect(res.status).to.equal(401);
+  });
+
+  it('should return 403 when called with an owner token', async () => {
+    stubOwnerAuth();
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/approve`)
+      .set('Authorization', `Bearer ${makeOwnerToken()}`);
+
+    expect(res.status).to.equal(403);
   });
 });
 
@@ -206,20 +242,43 @@ describe('PATCH /api/admin/owners/:id/reject', () => {
     expect(res.body.user.status).to.equal('rejected');
   });
 
-  it('should return 500 when the owner is not found', async () => {
+  it('should return 404 when the owner is not found', async () => {
     stubAdminAuth();
-    sinon.stub(adminService, 'rejectOwner').rejects(new Error('Owner not found'));
+    sinon.stub(adminService, 'rejectOwner')
+      .rejects(new AppError('Owner not found', 404, 'OWNER_NOT_FOUND'));
 
     const res = await request(app)
       .patch(`/api/admin/owners/${FAKE_OWNER_ID}/reject`)
       .set('Authorization', `Bearer ${makeAdminToken()}`);
 
-    expect(res.status).to.equal(500);
+    expect(res.status).to.equal(404);
+  });
+
+  it('should return 400 when the owner id is invalid', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'rejectOwner')
+      .rejects(new AppError('Invalid owner id', 400, 'INVALID_OWNER_ID'));
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/reject`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(400);
   });
 
   it('should return 401 with no token', async () => {
     const res = await request(app).patch(`/api/admin/owners/${FAKE_OWNER_ID}/reject`);
     expect(res.status).to.equal(401);
+  });
+
+  it('should return 403 when called with an owner token', async () => {
+    stubOwnerAuth();
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/reject`)
+      .set('Authorization', `Bearer ${makeOwnerToken()}`);
+
+    expect(res.status).to.equal(403);
   });
 });
 
@@ -241,20 +300,43 @@ describe('PATCH /api/admin/owners/:id/disable', () => {
     expect(res.body.user.status).to.equal('disabled');
   });
 
-  it('should return 500 when the owner is not found', async () => {
+  it('should return 404 when the owner is not found', async () => {
     stubAdminAuth();
-    sinon.stub(adminService, 'disableOwner').rejects(new Error('Owner not found'));
+    sinon.stub(adminService, 'disableOwner')
+      .rejects(new AppError('Owner not found', 404, 'OWNER_NOT_FOUND'));
 
     const res = await request(app)
       .patch(`/api/admin/owners/${FAKE_OWNER_ID}/disable`)
       .set('Authorization', `Bearer ${makeAdminToken()}`);
 
-    expect(res.status).to.equal(500);
+    expect(res.status).to.equal(404);
+  });
+
+  it('should return 400 when the owner id is invalid', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'disableOwner')
+      .rejects(new AppError('Invalid owner id', 400, 'INVALID_OWNER_ID'));
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/disable`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(400);
   });
 
   it('should return 401 with no token', async () => {
     const res = await request(app).patch(`/api/admin/owners/${FAKE_OWNER_ID}/disable`);
     expect(res.status).to.equal(401);
+  });
+
+  it('should return 403 when called with an owner token', async () => {
+    stubOwnerAuth();
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/disable`)
+      .set('Authorization', `Bearer ${makeOwnerToken()}`);
+
+    expect(res.status).to.equal(403);
   });
 });
 

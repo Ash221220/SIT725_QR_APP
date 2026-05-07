@@ -154,6 +154,41 @@ describe('PATCH /api/admin/owners/:id/approve — integration', () => {
     expect(loginRes.body).to.have.property('token');
   });
 
+  it('returns 400 when the owner id is not a valid ObjectId', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/not-a-valid-id/approve')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 404 when the owner id does not exist', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/64a1b2c3d4e5f6a7b8c9d0e1/approve')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(404);
+  });
+
+  it('returns 409 when the owner is already approved (has a linked restaurant)', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('alreadyapproved');
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(409);
+  });
+
   it('returns 401 with no token', async () => {
     const adminToken = await seedAdmin();
     const ownerId    = await registerPendingOwner('noapprovetoken');
@@ -178,6 +213,26 @@ describe('PATCH /api/admin/owners/:id/reject — integration', () => {
 
     const inDB = await User.findById(ownerId);
     expect(inDB.status).to.equal('rejected');
+  });
+
+  it('returns 400 when the owner id is not a valid ObjectId', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/not-a-valid-id/reject')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 404 when the owner id does not exist', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/64a1b2c3d4e5f6a7b8c9d0e1/reject')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(404);
   });
 
   it('rejected owner cannot login', async () => {
@@ -211,6 +266,32 @@ describe('PATCH /api/admin/owners/:id/disable — integration', () => {
 
     const inDB = await User.findById(ownerId);
     expect(inDB.status).to.equal('disabled');
+  });
+
+  it('returns 400 when the owner id is not a valid ObjectId', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/not-a-valid-id/disable')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 404 when the owner id does not exist', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/64a1b2c3d4e5f6a7b8c9d0e1/disable')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(404);
+  });
+
+  it('returns 401 with no token', async () => {
+    const res = await request(app)
+      .patch('/api/admin/owners/64a1b2c3d4e5f6a7b8c9d0e1/disable');
+    expect(res.status).to.equal(401);
   });
 });
 
@@ -298,6 +379,35 @@ describe('POST /api/admin/restaurants/:id/tables — integration', () => {
     expect(res.status).to.equal(404);
   });
 
+  it('returns 400 when totalTables is a non-numeric string', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('tableowner5');
+
+    const approveRes = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const restaurantId = approveRes.body.user.restaurantId;
+
+    const res = await request(app)
+      .post(`/api/admin/restaurants/${restaurantId}/tables`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ totalTables: 'five' });
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 400 when the restaurant id is not a valid ObjectId', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .post('/api/admin/restaurants/not-a-valid-id/tables')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ totalTables: 3 });
+
+    expect(res.status).to.equal(400);
+  });
+
   it('returns 401 with no token', async () => {
     const res = await request(app)
       .post('/api/admin/restaurants/64a1b2c3d4e5f6a7b8c9d0e1/tables')
@@ -342,6 +452,16 @@ describe('GET /api/admin/restaurants/:id/tables — integration', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).to.equal(404);
+  });
+
+  it('returns 400 when the restaurant id is not a valid ObjectId', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .get('/api/admin/restaurants/not-a-valid-id/tables')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(400);
   });
 
   it('returns 401 with no token', async () => {
