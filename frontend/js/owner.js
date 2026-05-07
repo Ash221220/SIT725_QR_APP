@@ -3,70 +3,85 @@ let ownerMenuItems = [];
 const MENU_CATEGORIES = ["Appetizers", "Mains", "Desserts", "Sides", "Beverages"];
 
 document.addEventListener("DOMContentLoaded", () => {
-  const token = localStorage.getItem("token");
-  const user = JSON.parse(localStorage.getItem("user"));
+  try {
+    const token = localStorage.getItem("token");
+    const userRaw = localStorage.getItem("user");
+    const user = userRaw ? JSON.parse(userRaw) : null;
 
-  if (!token || !user) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  if (user.role !== "owner") {
-    M.toast({ html: "Access denied" });
-    window.location.href = "login.html";
-    return;
-  }
-
-  const ownerWelcome = document.getElementById("ownerWelcome");
-  if (ownerWelcome) {
-    ownerWelcome.textContent = `Welcome, ${user.name || user.email}`;
-  }
-
-  const modals = document.querySelectorAll(".modal");
-  M.Modal.init(modals);
-
-  const selects = document.querySelectorAll("select");
-  M.FormSelect.init(selects);
-
-  const logoutBtn = document.getElementById("logoutBtn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+    if (!token || !user) {
       window.location.href = "login.html";
-    });
-  }
+      return;
+    }
 
-  const addItemBtn = document.getElementById("addItemBtn");
-  if (addItemBtn) {
-    addItemBtn.addEventListener("click", resetMenuItemForm);
-  }
+    if (user.role !== "owner") {
+      safeToast("Access denied");
+      window.location.href = "login.html";
+      return;
+    }
 
-  const searchInput = document.getElementById("ownerMenuSearch");
-  if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      renderOwnerMenu();
-      renderCategorySections();
-    });
-  }
+    const ownerWelcome = document.getElementById("ownerWelcome");
+    if (ownerWelcome) {
+      ownerWelcome.textContent = `Welcome, ${user.name || user.email}`;
+    }
 
-  const imageInput = document.getElementById("itemImage");
-  if (imageInput) {
-    imageInput.addEventListener("input", updateImagePreview);
-  }
+    const modals = document.querySelectorAll(".modal");
+    if (window.M?.Modal) {
+      M.Modal.init(modals);
+    }
 
-  const categorySelect = document.getElementById("itemCategory");
-  if (categorySelect) {
-    categorySelect.addEventListener("change", handleCategoryChange);
-  }
+    const selects = document.querySelectorAll("select");
+    if (window.M?.FormSelect) {
+      M.FormSelect.init(selects);
+    }
 
-  const menuItemForm = document.getElementById("menuItemForm");
-  if (menuItemForm) {
-    menuItemForm.addEventListener("submit", handleMenuItemSubmit);
-  }
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "login.html";
+      });
+    }
 
-  loadOwnerMenu();
+    const addItemBtn = document.getElementById("addItemBtn");
+    if (addItemBtn) {
+      addItemBtn.addEventListener("click", resetMenuItemForm);
+    }
+
+    const searchInput = document.getElementById("ownerMenuSearch");
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        try {
+          renderOwnerMenu();
+          renderCategorySections();
+        } catch (error) {
+          console.error(error);
+          safeToast("Unable to refresh menu view.");
+        }
+      });
+    }
+
+    const imageInput = document.getElementById("itemImage");
+    if (imageInput) {
+      imageInput.addEventListener("input", updateImagePreview);
+    }
+
+    const categorySelect = document.getElementById("itemCategory");
+    if (categorySelect) {
+      categorySelect.addEventListener("change", handleCategoryChange);
+    }
+
+    const menuItemForm = document.getElementById("menuItemForm");
+    if (menuItemForm) {
+      menuItemForm.addEventListener("submit", handleMenuItemSubmit);
+    }
+
+    loadOwnerMenu();
+  } catch (error) {
+    console.error(error);
+    safeToast("Owner page failed to initialize. Please refresh.");
+  }
 });
 
 async function ownerApiRequest(endpoint, method = "GET", body = null) {
@@ -84,14 +99,25 @@ async function ownerApiRequest(endpoint, method = "GET", body = null) {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Request failed");
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+  } catch (error) {
+    throw new Error("Network error. Please check backend connection.");
   }
 
-  return data;
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Request failed");
+  }
+
+  return data || {};
 }
 
 function getFilteredItems() {
@@ -131,6 +157,7 @@ async function loadOwnerMenu() {
 
 function renderOwnerMenu() {
   const tableBody = document.getElementById("ownerMenuTable");
+  if (!tableBody) return;
   const filteredItems = getFilteredItems();
 
   if (!filteredItems.length) {
@@ -214,19 +241,27 @@ function updateOwnerStats() {
 }
 
 function resetMenuItemForm() {
-  const form = document.getElementById("menuItemForm");
-  form.reset();
+  try {
+    const form = document.getElementById("menuItemForm");
+    if (!form) return;
+    form.reset();
 
-  document.getElementById("menuItemId").value = "";
-  document.getElementById("menuModalHeading").textContent = "Add Menu Item";
-  document.getElementById("itemAvailable").checked = true;
+    document.getElementById("menuItemId").value = "";
+    document.getElementById("menuModalHeading").textContent = "Add Menu Item";
+    document.getElementById("itemAvailable").checked = true;
 
-  setSelectValue("itemCategory", "");
-  setSelectValue("itemDietaryType", "");
-  setDietaryRequired(true);
-  updateImagePreview();
+    setSelectValue("itemCategory", "");
+    setSelectValue("itemDietaryType", "");
+    setDietaryRequired(true);
+    updateImagePreview();
 
-  M.updateTextFields();
+    if (window.M?.updateTextFields) {
+      M.updateTextFields();
+    }
+  } catch (error) {
+    console.error(error);
+    safeToast("Unable to reset form.");
+  }
 }
 
 function editMenuItem(itemId) {
@@ -246,11 +281,17 @@ function editMenuItem(itemId) {
 
   document.getElementById("menuModalHeading").textContent = "Edit Menu Item";
   updateImagePreview();
-  M.updateTextFields();
+  if (window.M?.updateTextFields) {
+    M.updateTextFields();
+  }
 
   const modalElement = document.getElementById("menuItemModal");
-  const modalInstance = M.Modal.getInstance(modalElement);
-  modalInstance.open();
+  const modalInstance = window.M?.Modal ? M.Modal.getInstance(modalElement) : null;
+  if (modalInstance) {
+    modalInstance.open();
+  } else {
+    safeToast("Modal could not be opened.");
+  }
 }
 
 async function handleMenuItemSubmit(event) {
@@ -295,8 +336,10 @@ async function handleMenuItemSubmit(event) {
     }
 
     const modalElement = document.getElementById("menuItemModal");
-    const modalInstance = M.Modal.getInstance(modalElement);
-    modalInstance.close();
+    const modalInstance = window.M?.Modal ? M.Modal.getInstance(modalElement) : null;
+    if (modalInstance) {
+      modalInstance.close();
+    }
 
     await loadOwnerMenu();
   } catch (error) {
@@ -339,13 +382,18 @@ function setSelectValue(selectId, value) {
   const select = document.getElementById(selectId);
   if (!select) return;
   select.value = value;
-  M.FormSelect.init(select);
+  if (window.M?.FormSelect) {
+    M.FormSelect.init(select);
+  }
 }
 
 function updateImagePreview() {
-  const imageUrl = document.getElementById("itemImage").value.trim();
+  const imageInput = document.getElementById("itemImage");
   const imageEl = document.getElementById("itemImagePreview");
   const wrapEl = document.getElementById("itemImagePreviewWrap");
+  if (!imageInput || !imageEl || !wrapEl) return;
+
+  const imageUrl = imageInput.value.trim();
 
   if (!imageUrl) {
     wrapEl.classList.add("hide");
@@ -361,9 +409,12 @@ function updateImagePreview() {
 }
 
 function handleCategoryChange() {
-  const category = document.getElementById("itemCategory").value;
+  const categorySelect = document.getElementById("itemCategory");
   const dietarySelect = document.getElementById("itemDietaryType");
   const dietaryFieldWrap = document.getElementById("dietaryFieldWrap");
+  if (!categorySelect || !dietarySelect) return;
+
+  const category = categorySelect.value;
   const isBeverage = category === "Beverages";
 
   setDietaryRequired(!isBeverage);
@@ -382,4 +433,12 @@ function setDietaryRequired(required) {
   const dietarySelect = document.getElementById("itemDietaryType");
   if (!dietarySelect) return;
   dietarySelect.required = required;
+}
+
+function safeToast(message) {
+  if (window.M?.toast) {
+    M.toast({ html: message });
+  } else {
+    console.warn(message);
+  }
 }
