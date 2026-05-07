@@ -11,7 +11,6 @@ const adminRoutes = require('./routes/adminRoutes');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 dotenv.config();
-connectDB();
 
 const app = express();
 const path = require('path');
@@ -31,8 +30,13 @@ app.use('/api/menu', menuRoutes);
 app.use('/api/admin', adminRoutes);
 app.use(errorHandler);
 
-// Default 5001: macOS often binds 5000 (e.g. AirPlay Receiver).
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Connect to DB and start listening only when run directly (not imported by tests)
+if (require.main === module) {
+  connectDB();
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
