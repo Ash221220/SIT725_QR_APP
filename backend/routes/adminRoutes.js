@@ -7,6 +7,7 @@ const {
   approveOwner,
   rejectOwner,
   disableOwner,
+  enableOwner,
   getAllRestaurants,
   setTables,
   getTablesByRestaurant,
@@ -21,6 +22,7 @@ router.get('/owners', getAllOwners);
 router.patch('/owners/:id/approve', approveOwner);
 router.patch('/owners/:id/reject', rejectOwner);
 router.patch('/owners/:id/disable', disableOwner);
+router.patch('/owners/:id/enable', enableOwner);
 router.get('/restaurants', getAllRestaurants);
 router.post('/restaurants/:id/tables', setTables);
 router.get('/restaurants/:id/tables', getTablesByRestaurant);
