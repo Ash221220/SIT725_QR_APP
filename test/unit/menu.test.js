@@ -28,6 +28,7 @@ const app         = require('../../backend/server');
 const menuService = require('../../backend/services/menuService');
 const User        = require('../../backend/models/User');
 const MenuItem    = require('../../backend/models/MenuItem');
+const AppError    = require('../../backend/utils/AppError');
 const Table       = require('../../backend/models/Table');
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
@@ -260,7 +261,7 @@ describe('PUT /api/menu/my/:itemId', () => {
 
   it('should return 404 when the item does not exist', async () => {
     stubOwnerAuth();
-    sinon.stub(menuService, 'updateMenuItem').rejects(new Error('Menu item not found'));
+    sinon.stub(menuService, 'updateMenuItem').rejects(new AppError('Menu item not found', 404));
 
     const res = await request(app)
       .put(`/api/menu/my/${VALID_OBJECT_ID}`)
@@ -273,7 +274,7 @@ describe('PUT /api/menu/my/:itemId', () => {
 
   it('should return 400 for a malformed ObjectId', async () => {
     stubOwnerAuth();
-    sinon.stub(menuService, 'updateMenuItem').rejects(new Error('Invalid item id'));
+    sinon.stub(menuService, 'updateMenuItem').rejects(new AppError('Invalid item id', 400));
 
     const res = await request(app)
       .put('/api/menu/my/not-a-valid-id')
@@ -374,7 +375,7 @@ describe('DELETE /api/menu/my/:itemId', () => {
 
   it('should return 404 when the item does not exist', async () => {
     stubOwnerAuth();
-    sinon.stub(menuService, 'deleteMenuItem').rejects(new Error('Menu item not found'));
+    sinon.stub(menuService, 'deleteMenuItem').rejects(new AppError('Menu item not found', 404));
 
     const res = await request(app)
       .delete(`/api/menu/my/${VALID_OBJECT_ID}`)
@@ -386,7 +387,7 @@ describe('DELETE /api/menu/my/:itemId', () => {
 
   it('should return 400 for a malformed ObjectId', async () => {
     stubOwnerAuth();
-    sinon.stub(menuService, 'deleteMenuItem').rejects(new Error('Invalid item id'));
+    sinon.stub(menuService, 'deleteMenuItem').rejects(new AppError('Invalid item id', 400));
 
     const res = await request(app)
       .delete('/api/menu/my/not-a-valid-id')
