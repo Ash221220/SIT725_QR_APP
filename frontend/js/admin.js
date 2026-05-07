@@ -156,7 +156,7 @@ function renderRestaurants(restaurants) {
   });
 
   if (restaurantCount) {
-    restaurantCount.textContent = restaurantsList.length;
+    restaurantCount.textContent = filteredRestaurants.length;
   }
 
   if (!filteredRestaurants.length) {
@@ -193,7 +193,6 @@ async function loadOwners() {
   try {
     const response = await apiRequest("/admin/owners");
     ownersList = response.owners || response.data || response || [];
-    console.log("Loaded owners:", ownersList);
     renderOwners(ownersList);
   } catch (error) {
     tableBody.innerHTML = `
@@ -212,6 +211,9 @@ function renderOwners(owners) {
   if (!tableBody) return;
 
   const filteredOwners = owners.filter(owner => {
+    if("pendingRestaurantName" in owner) {
+      return ;
+    }
     const name = owner.name || "";
     const email = owner.email || "";
     const status = owner.status || "";
@@ -228,8 +230,6 @@ function renderOwners(owners) {
   if (ownerCount) {
     ownerCount.textContent = filteredOwners.length;
   }
-  console.log("Rendering owners:", filteredOwners);
-
   if (!filteredOwners.length) {
     tableBody.innerHTML = `
       <tr>
@@ -278,7 +278,6 @@ async function loadPendingOwners() {
 
   try {
     const response = await apiRequest("/admin/owners/pending");
-    console.log("Loaded pending owners:", response.owners);
     pendingOwnersList = response.owners || [];
     const pendingCount = document.getElementById("pendingCount");
 
@@ -396,8 +395,6 @@ async function loadIndividualRestaurantTables() {
     );
 
     const tables = response.tables || response.data || response || [];
-
-    console.log("Loaded tables:", tables);
 
     if (!tables.length) {
       container.innerHTML = `
