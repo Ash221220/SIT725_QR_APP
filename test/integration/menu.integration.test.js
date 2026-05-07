@@ -93,6 +93,27 @@ describe('GET /api/menu/my — integration', () => {
   });
 });
 
+// ─── GET /api/menu/my/tables ──────────────────────────────────────────────────
+
+describe('GET /api/menu/my/tables — integration', () => {
+  it('returns 200 and an empty array when no tables have been set', async () => {
+    const { ownerToken } = await seedApprovedOwner('tablesnone');
+
+    const res = await request(app)
+      .get('/api/menu/my/tables')
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.tables).to.be.an('array').with.lengthOf(0);
+  });
+
+  it('returns 401 with no token', async () => {
+    const res = await request(app).get('/api/menu/my/tables');
+    expect(res.status).to.equal(401);
+  });
+});
+
 // ─── POST /api/menu/my ────────────────────────────────────────────────────────
 
 describe('POST /api/menu/my — integration', () => {

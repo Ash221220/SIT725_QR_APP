@@ -18,6 +18,7 @@ exports.mochaHooks = {
     process.env.MONGO_URI       = mongod.getUri();
     process.env.JWT_SECRET      = 'integration_test_secret';
     process.env.JWT_EXPIRES_IN  = '1d';
+    process.env.BASE_URL        = 'http://localhost:5001';
     await connectDB();
   },
 
