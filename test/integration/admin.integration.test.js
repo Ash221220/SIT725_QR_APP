@@ -11,6 +11,8 @@
  *   PATCH /api/admin/owners/:id/reject
  *   PATCH /api/admin/owners/:id/disable
  *   GET   /api/admin/restaurants
+ *   POST  /api/admin/restaurants/:id/tables
+ *   GET   /api/admin/restaurants/:id/tables
  */
 
 const request    = require('supertest');
@@ -237,6 +239,113 @@ describe('GET /api/admin/restaurants — integration', () => {
 
   it('returns 401 with no token', async () => {
     const res = await request(app).get('/api/admin/restaurants');
+    expect(res.status).to.equal(401);
+  });
+});
+
+// ─── POST /api/admin/restaurants/:id/tables ───────────────────────────────────
+
+describe('POST /api/admin/restaurants/:id/tables — integration', () => {
+  it('creates tables for a restaurant and returns 201 with QR codes', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('tableowner1');
+
+    const approveRes = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const restaurantId = approveRes.body.user.restaurantId;
+
+    const res = await request(app)
+      .post(`/api/admin/restaurants/${restaurantId}/tables`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ totalTables: 3 });
+
+    expect(res.status).to.equal(201);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.tables).to.be.an('array').with.lengthOf(3);
+    expect(res.body.tables[0]).to.have.property('qrCodeUrl');
+    expect(res.body.tables[0]).to.have.property('tableNumber', 1);
+  });
+
+  it('returns 400 when totalTables is not a valid integer', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('tableowner2');
+
+    const approveRes = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const restaurantId = approveRes.body.user.restaurantId;
+
+    const res = await request(app)
+      .post(`/api/admin/restaurants/${restaurantId}/tables`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ totalTables: -1 });
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 404 when the restaurant does not exist', async () => {
+    const adminToken    = await seedAdmin();
+    const fakeRestaurantId = '64a1b2c3d4e5f6a7b8c9d0e1';
+
+    const res = await request(app)
+      .post(`/api/admin/restaurants/${fakeRestaurantId}/tables`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ totalTables: 2 });
+
+    expect(res.status).to.equal(404);
+  });
+
+  it('returns 401 with no token', async () => {
+    const res = await request(app)
+      .post('/api/admin/restaurants/64a1b2c3d4e5f6a7b8c9d0e1/tables')
+      .send({ totalTables: 2 });
+    expect(res.status).to.equal(401);
+  });
+});
+
+// ─── GET /api/admin/restaurants/:id/tables ────────────────────────────────────
+
+describe('GET /api/admin/restaurants/:id/tables — integration', () => {
+  it('returns 200 and the tables for a restaurant', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('tableowner3');
+
+    const approveRes = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const restaurantId = approveRes.body.user.restaurantId;
+
+    await request(app)
+      .post(`/api/admin/restaurants/${restaurantId}/tables`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ totalTables: 4 });
+
+    const res = await request(app)
+      .get(`/api/admin/restaurants/${restaurantId}/tables`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.tables).to.be.an('array').with.lengthOf(4);
+  });
+
+  it('returns 404 when the restaurant does not exist', async () => {
+    const adminToken       = await seedAdmin();
+    const fakeRestaurantId = '64a1b2c3d4e5f6a7b8c9d0e1';
+
+    const res = await request(app)
+      .get(`/api/admin/restaurants/${fakeRestaurantId}/tables`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(404);
+  });
+
+  it('returns 401 with no token', async () => {
+    const res = await request(app).get('/api/admin/restaurants/64a1b2c3d4e5f6a7b8c9d0e1/tables');
     expect(res.status).to.equal(401);
   });
 });

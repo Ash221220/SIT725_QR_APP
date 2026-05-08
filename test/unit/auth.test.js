@@ -19,6 +19,7 @@ const sinon      = require('sinon');
 
 const app         = require('../../backend/server');
 const authService = require('../../backend/services/authService');
+const AppError    = require('../../backend/utils/AppError');
 
 // ─── Shared fake data ─────────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ describe('POST /api/auth/register', () => {
   });
 
   it('should return 409 when the email is already registered', async () => {
-    sinon.stub(authService, 'registerOwner').rejects(new Error('Email already registered'));
+    sinon.stub(authService, 'registerOwner').rejects(new AppError('Email already registered', 409, 'EMAIL_ALREADY_REGISTERED'));
 
     const res = await request(app)
       .post('/api/auth/register')
@@ -167,7 +168,7 @@ describe('POST /api/auth/login', () => {
   });
 
   it('should return 401 when credentials are invalid', async () => {
-    sinon.stub(authService, 'loginUser').rejects(new Error('Invalid email or password'));
+    sinon.stub(authService, 'loginUser').rejects(new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS'));
 
     const res = await request(app)
       .post('/api/auth/login')
@@ -179,7 +180,7 @@ describe('POST /api/auth/login', () => {
   });
 
   it('should return 401 for a non-existent email', async () => {
-    sinon.stub(authService, 'loginUser').rejects(new Error('Invalid email or password'));
+    sinon.stub(authService, 'loginUser').rejects(new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS'));
 
     const res = await request(app)
       .post('/api/auth/login')
@@ -190,7 +191,7 @@ describe('POST /api/auth/login', () => {
   });
 
   it('should return 403 when the account is not yet approved', async () => {
-    sinon.stub(authService, 'loginUser').rejects(new Error('Account is not approved'));
+    sinon.stub(authService, 'loginUser').rejects(new AppError('Account is not approved', 403, 'OWNER_NOT_APPROVED'));
 
     const res = await request(app)
       .post('/api/auth/login')

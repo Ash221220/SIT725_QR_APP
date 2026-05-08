@@ -48,6 +48,16 @@ async function disableOwner(req, res, next) {
   }
 }
 
+async function enableOwner(req, res, next) {
+  try {
+    const { id } = req.params;
+    const user = await adminService.enableOwner(id);
+    return res.status(200).json({ success: true, user });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function getAllRestaurants(req, res, next) {
   try {
     const restaurants = await adminService.getAllRestaurants();
@@ -84,6 +94,7 @@ module.exports = {
   approveOwner,
   rejectOwner,
   disableOwner,
+  enableOwner,
   getAllRestaurants,
   setTables,
   getTablesByRestaurant,
