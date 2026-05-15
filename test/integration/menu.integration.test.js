@@ -257,6 +257,21 @@ describe('PATCH /api/menu/my/:itemId/availability — integration', () => {
     expect(res.status).to.equal(400);
     expect(res.body.message).to.equal('isAvailable must be a boolean');
   });
+
+  it('returns 400 when isAvailable is missing from the request body', async () => {
+    const { ownerToken } = await seedApprovedOwner();
+    const { body: { item } } = await request(app)
+      .post('/api/menu/my')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(validItem());
+
+    const res = await request(app)
+      .patch(`/api/menu/my/${item._id}/availability`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({});
+
+    expect(res.status).to.equal(400);
+  });
 });
 
 // ─── DELETE /api/menu/my/:itemId ──────────────────────────────────────────────
@@ -326,5 +341,17 @@ describe('GET /api/menu/:restaurantId — integration (admin only)', () => {
       .set('Authorization', `Bearer ${ownerToken}`);
 
     expect(res.status).to.equal(403);
+  });
+
+  it('returns 400 when restaurantId is not a valid ObjectId', async () => {
+    const adminLoginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@system.com', password: 'admin123' });
+
+    const res = await request(app)
+      .get('/api/menu/not-a-valid-id')
+      .set('Authorization', `Bearer ${adminLoginRes.body.token}`);
+
+    expect(res.status).to.equal(400);
   });
 });
