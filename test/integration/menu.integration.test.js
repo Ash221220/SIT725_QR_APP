@@ -258,6 +258,18 @@ describe('PATCH /api/menu/my/:itemId/availability — integration', () => {
     expect(res.body.message).to.equal('isAvailable must be a boolean');
   });
 
+  it('returns 404 when the item does not exist', async () => {
+    const { ownerToken } = await seedApprovedOwner('avail404');
+    const fakeId = new mongoose.Types.ObjectId();
+
+    const res = await request(app)
+      .patch(`/api/menu/my/${fakeId}/availability`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ isAvailable: false });
+
+    expect(res.status).to.equal(404);
+  });
+
   it('returns 400 when isAvailable is missing from the request body', async () => {
     const { ownerToken } = await seedApprovedOwner();
     const { body: { item } } = await request(app)

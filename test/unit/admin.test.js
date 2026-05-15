@@ -11,6 +11,7 @@
  *   PATCH /api/admin/owners/:id/approve
  *   PATCH /api/admin/owners/:id/reject
  *   PATCH /api/admin/owners/:id/disable
+ *   PATCH /api/admin/owners/:id/enable
  *   GET   /api/admin/restaurants
  *   POST  /api/admin/restaurants/:id/tables
  *   GET   /api/admin/restaurants/:id/tables
@@ -340,6 +341,77 @@ describe('PATCH /api/admin/owners/:id/disable', () => {
   });
 });
 
+// ─── PATCH /api/admin/owners/:id/enable ──────────────────────────────────────
+
+describe('PATCH /api/admin/owners/:id/enable', () => {
+  afterEach(() => sinon.restore());
+
+  it('should return 200 and the re-enabled user', async () => {
+    stubAdminAuth();
+    const fakeEnabledUser = { _id: FAKE_OWNER_ID, name: 'Test Owner', role: 'owner', status: 'approved' };
+    sinon.stub(adminService, 'enableOwner').resolves(fakeEnabledUser);
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/enable`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.user.status).to.equal('approved');
+  });
+
+  it('should return 404 when the owner is not found', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'enableOwner')
+      .rejects(new AppError('Owner not found', 404, 'OWNER_NOT_FOUND'));
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/enable`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(404);
+  });
+
+  it('should return 400 when the owner id is invalid', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'enableOwner')
+      .rejects(new AppError('Invalid owner id', 400, 'INVALID_OWNER_ID'));
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/enable`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('should return 400 when the owner is not currently disabled', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'enableOwner')
+      .rejects(new AppError('Owner account is not disabled', 400, 'OWNER_NOT_DISABLED'));
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/enable`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('should return 401 with no token', async () => {
+    const res = await request(app).patch(`/api/admin/owners/${FAKE_OWNER_ID}/enable`);
+    expect(res.status).to.equal(401);
+  });
+
+  it('should return 403 when called with an owner token', async () => {
+    stubOwnerAuth();
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${FAKE_OWNER_ID}/enable`)
+      .set('Authorization', `Bearer ${makeOwnerToken()}`);
+
+    expect(res.status).to.equal(403);
+  });
+});
+
 // ─── GET /api/admin/restaurants ──────────────────────────────────────────────
 
 describe('GET /api/admin/restaurants', () => {
@@ -393,6 +465,43 @@ describe('POST /api/admin/restaurants/:id/tables', () => {
     expect(res.body.tables).to.be.an('array').with.lengthOf(2);
   });
 
+  it('should return 403 when called with an owner token', async () => {
+    stubOwnerAuth();
+
+    const res = await request(app)
+      .post(`/api/admin/restaurants/${FAKE_RESTAURANT_ID}/tables`)
+      .set('Authorization', `Bearer ${makeOwnerToken()}`)
+      .send({ totalTables: 2 });
+
+    expect(res.status).to.equal(403);
+  });
+
+  it('should return 400 when totalTables is missing from the body', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'setTables')
+      .rejects(new AppError('totalTables must be a non-negative integer', 400, 'INVALID_TOTAL_TABLES'));
+
+    const res = await request(app)
+      .post(`/api/admin/restaurants/${FAKE_RESTAURANT_ID}/tables`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`)
+      .send({});
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('should return 404 when the restaurant does not exist', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'setTables')
+      .rejects(new AppError('Restaurant not found', 404, 'RESTAURANT_NOT_FOUND'));
+
+    const res = await request(app)
+      .post(`/api/admin/restaurants/${FAKE_RESTAURANT_ID}/tables`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`)
+      .send({ totalTables: 3 });
+
+    expect(res.status).to.equal(404);
+  });
+
   it('should return 401 with no token', async () => {
     const res = await request(app)
       .post(`/api/admin/restaurants/${FAKE_RESTAURANT_ID}/tables`)
@@ -418,6 +527,40 @@ describe('GET /api/admin/restaurants/:id/tables', () => {
     expect(res.body.success).to.equal(true);
     expect(res.body.tables).to.be.an('array').with.lengthOf(2);
     expect(res.body.tables[0]).to.have.property('tableNumber', 1);
+  });
+
+  it('should return 403 when called with an owner token', async () => {
+    stubOwnerAuth();
+
+    const res = await request(app)
+      .get(`/api/admin/restaurants/${FAKE_RESTAURANT_ID}/tables`)
+      .set('Authorization', `Bearer ${makeOwnerToken()}`);
+
+    expect(res.status).to.equal(403);
+  });
+
+  it('should return 404 when the restaurant does not exist', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'getTablesByRestaurant')
+      .rejects(new AppError('Restaurant not found', 404, 'RESTAURANT_NOT_FOUND'));
+
+    const res = await request(app)
+      .get(`/api/admin/restaurants/${FAKE_RESTAURANT_ID}/tables`)
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(404);
+  });
+
+  it('should return 400 for a malformed restaurant id', async () => {
+    stubAdminAuth();
+    sinon.stub(adminService, 'getTablesByRestaurant')
+      .rejects(new AppError('Invalid restaurant id', 400, 'INVALID_RESTAURANT_ID'));
+
+    const res = await request(app)
+      .get('/api/admin/restaurants/not-a-valid-id/tables')
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(400);
   });
 
   it('should return 401 with no token', async () => {

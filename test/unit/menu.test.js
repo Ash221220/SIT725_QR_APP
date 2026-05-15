@@ -170,6 +170,23 @@ describe('GET /api/menu/my/tables', () => {
     expect(res.body.tables).to.be.an('array');
   });
 
+  it('should return 401 with an invalid token', async () => {
+    const res = await request(app)
+      .get('/api/menu/my/tables')
+      .set('Authorization', 'Bearer not.a.valid.token');
+    expect(res.status).to.equal(401);
+  });
+
+  it('should return 403 when an admin token is used on an owner-only route', async () => {
+    stubAdminAuth();
+
+    const res = await request(app)
+      .get('/api/menu/my/tables')
+      .set('Authorization', `Bearer ${makeAdminToken()}`);
+
+    expect(res.status).to.equal(403);
+  });
+
   it('should return 401 with no token', async () => {
     const res = await request(app).get('/api/menu/my/tables');
     expect(res.status).to.equal(401);
@@ -345,6 +362,19 @@ describe('PATCH /api/menu/my/:itemId/availability', () => {
       .send({ isAvailable: 1 });
 
     expect(res.status).to.equal(400);
+  });
+
+  it('should return 404 when the item does not exist', async () => {
+    stubOwnerAuth();
+    sinon.stub(menuService, 'setAvailability').rejects(new AppError('Menu item not found', 404));
+
+    const res = await request(app)
+      .patch(`/api/menu/my/${VALID_OBJECT_ID}/availability`)
+      .set('Authorization', `Bearer ${makeOwnerToken()}`)
+      .send({ isAvailable: false });
+
+    expect(res.status).to.equal(404);
+    expect(res.body.message).to.equal('Menu item not found');
   });
 
   it('should return 401 with no token', async () => {

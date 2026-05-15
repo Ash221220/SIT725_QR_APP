@@ -1,19 +1,29 @@
 /**
  * Admin Dashboard E2E Tests
+ * File: cypress/e2e/admin-dashboard.cy.js
  *
- * Covers: 
+ * Covers:
  *   1. frontend/pages/admin-dashboard.html
  *   2. frontend/js/admin.js
  *
- * Tests are grouped by concern:
- *  3a. Authentication guard
- *  3b. Page structure (static HTML)
- *  3c. Welcome message
- *  3d. Pending owners — loaded from API
- *  3e. Restaurants table — loaded from API
- *  3f. Owner actions (approve / deny / remove access)
- *  3g. Logout
- *  3h. API error handling
+ * Test groups:
+ *   3a. Authentication guard
+ *   3b. Page structure
+ *   3c. Welcome message
+ *   3d. Pending owners — loaded from API
+ *   3e. Restaurants table — loaded from API
+ *   3f. Owner actions (approve / deny)
+ *   3g. Logout
+ *
+ * Notes:
+ *   All API calls are stubbed — tests do not require a running backend.
+ *   Stubs must be registered BEFORE cy.visit() as admin.js fires API
+ *   calls immediately on DOMContentLoaded.
+ *
+ * Prerequisites:
+ *   1. cd backend && npm start
+ *
+ * Run: npm run test:e2e
  */
 
 const DASHBOARD_URL = '/pages/admin-dashboard.html';
