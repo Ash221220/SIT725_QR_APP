@@ -651,6 +651,35 @@
           "response": []
         },
         {
+          "name": "GET /api/menu/public/:restaurantId — guest view, no auth (200)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/menu/public/{{restaurantId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response has only available menu items', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.menu).to.be.an('array');",
+                  "  json.menu.forEach(function (item) {",
+                  "    pm.expect(item.isAvailable).to.equal(true);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "PUT /api/menu/my/:itemId — update price (200)",
           "request": {
             "method": "PUT",

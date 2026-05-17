@@ -1,6 +1,7 @@
 // Purpose: Encapsulate menu item business logic for create, read, update, delete, and availability toggling.
 const mongoose = require('mongoose');
 const MenuItem = require('../models/MenuItem');
+const Restaurant = require('../models/Restaurant');
 const Table = require('../models/Table');
 const AppError = require('../utils/AppError');
 
@@ -9,6 +10,19 @@ async function getMenuByRestaurantId(restaurantId) {
     throw new AppError('Invalid restaurant id', 400);
   }
   return MenuItem.find({ restaurantId }).sort({ createdAt: 1 });
+}
+
+async function getPublicMenuByRestaurantId(restaurantId) {
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    throw new AppError('Invalid restaurant id', 400);
+  }
+
+  const restaurant = await Restaurant.findById(restaurantId).select('isActive');
+  if (!restaurant || !restaurant.isActive) {
+    throw new AppError('Restaurant not found', 404);
+  }
+
+  return MenuItem.find({ restaurantId, isAvailable: true }).sort({ category: 1, createdAt: 1 });
 }
 
 async function getMenuByOwner(restaurantId) {
@@ -80,6 +94,7 @@ async function setAvailability(restaurantId, itemId, isAvailable) {
 
 module.exports = {
   getMenuByRestaurantId,
+  getPublicMenuByRestaurantId,
   getMenuByOwner,
   getTablesByOwner,
   createMenuItem,

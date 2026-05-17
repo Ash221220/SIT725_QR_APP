@@ -47,6 +47,16 @@ async function getMenuByRestaurant(req, res, next) {
   }
 }
 
+async function getPublicMenu(req, res, next) {
+  try {
+    const { restaurantId } = req.params;
+    const menu = await menuService.getPublicMenuByRestaurantId(restaurantId);
+    return res.status(200).json({ success: true, menu });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function createMenuItem(req, res, next) {
   try {
     const owner = await getOwnerContext(req.user.id);
@@ -110,6 +120,7 @@ module.exports = {
   getOwnerMenu,
   getOwnerTables,
   getMenuByRestaurant,
+  getPublicMenu,
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,

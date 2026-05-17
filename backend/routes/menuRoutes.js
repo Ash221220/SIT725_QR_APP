@@ -6,6 +6,7 @@ const {
   getOwnerMenu,
   getOwnerTables,
   getMenuByRestaurant,
+  getPublicMenu,
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
@@ -13,6 +14,9 @@ const {
 } = require('../controllers/menuController');
 
 const router = express.Router();
+
+// Guest: public menu for QR scan (no auth)
+router.get('/public/:restaurantId', getPublicMenu);
 
 // Owner: read own menu and tables
 router.get('/my', protect, authorize('owner'), getOwnerMenu);
