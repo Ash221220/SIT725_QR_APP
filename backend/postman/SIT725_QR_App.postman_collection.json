@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-sit725-qr-app-e2e",
     "name": "SIT725 QR App API (E2E)",
-    "description": "Full API test suite. Run with the Collection Runner in order.\n\nPrerequisites:\n  1. cd backend && npm start\n  2. cd backend && npm run seed:admin\n  3. Import this collection into Postman\n\nThe runner will self-populate all tokens and IDs as it goes.",
+    "description": "Full API test suite. Run with the Collection Runner in order.\n\nPrerequisites:\n  1. cd backend && npm start\n  2. cd backend && npm run seed:admin (optional if section 1 registers owners)\n  3. Import this collection into Postman\n\nCovers auth, admin, owner menu, guest public menu, table sessions, and error cases.\nThe runner will self-populate tokens, restaurantId, menuItemId, and sessionId.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -17,7 +17,8 @@
     { "key": "rejectOwnerId",      "value": "" },
     { "key": "disableOwnerId",     "value": "" },
     { "key": "restaurantId",       "value": "" },
-    { "key": "menuItemId",         "value": "" }
+    { "key": "menuItemId",         "value": "" },
+    { "key": "sessionId",          "value": "" }
   ],
   "item": [
     {
@@ -680,6 +681,134 @@
           "response": []
         },
         {
+          "name": "POST /api/sessions/start — table 1, no auth (201)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/sessions/start",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"tableNumber\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201 or 200', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "pm.test('Response has active session', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.session.status).to.equal('active');",
+                  "  pm.expect(json.session.tableNumber).to.equal(1);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.session && json.session._id) {",
+                  "  pm.collectionVariables.set('sessionId', json.session._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/sessions/start — same table resumes (200)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/sessions/start",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"tableNumber\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Returns existing session', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.created).to.equal(false);",
+                  "  pm.expect(json.session._id).to.equal(pm.collectionVariables.get('sessionId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/sessions/active — table 1 (200)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/active?restaurantId={{restaurantId}}&tableNumber=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "active"],
+              "query": [
+                { "key": "restaurantId", "value": "{{restaurantId}}" },
+                { "key": "tableNumber", "value": "1" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Active session matches table 1', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.session.tableNumber).to.equal(1);",
+                  "  pm.expect(json.session.status).to.equal('active');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/sessions/:sessionId — guest, no auth (200)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Session matches stored sessionId', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "  pm.expect(json.session._id).to.equal(pm.collectionVariables.get('sessionId'));",
+                  "  pm.expect(json.session.status).to.equal('active');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "PUT /api/menu/my/:itemId — update price (200)",
           "request": {
             "method": "PUT",
@@ -746,6 +875,36 @@
           "response": []
         },
         {
+          "name": "GET /api/menu/public/:restaurantId — hides unavailable items (200)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/menu/public/{{restaurantId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Unavailable item is not in public menu', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.menu).to.be.an('array');",
+                  "  const names = json.menu.map(function (item) { return item.name; });",
+                  "  pm.expect(names).to.not.include('Grilled Salmon');",
+                  "  json.menu.forEach(function (item) {",
+                  "    pm.expect(item.isAvailable).to.equal(true);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "PATCH /api/menu/my/:itemId/availability — set true (200)",
           "request": {
             "method": "PATCH",
@@ -796,6 +955,33 @@
                   "  const json = pm.response.json();",
                   "  pm.expect(json.success).to.be.true;",
                   "  pm.expect(json.message).to.equal('Menu item deleted');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PATCH /api/sessions/:sessionId/close — owner (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}/close"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Session is closed', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.session.status).to.equal('closed');",
+                  "  pm.expect(json.session.closedAt).to.exist;",
                   "});"
                 ]
               }
@@ -1147,6 +1333,349 @@
                   "  const json = pm.response.json();",
                   "  pm.expect(json.success).to.be.false;",
                   "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/menu/public/not-a-valid-id — malformed ObjectId (400)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/menu/public/not-a-valid-id"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('Invalid restaurant id');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/menu/public/:restaurantId — restaurant not found (404)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/menu/public/507f1f77bcf86cd799439099"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('Restaurant not found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/sessions/start — missing fields (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/sessions/start",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Response has correct message', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('restaurantId and tableNumber are required');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/sessions/start — invalid restaurant id (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/sessions/start",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantId\": \"not-a-valid-id\",\n  \"tableNumber\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/sessions/start — table not found (404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/sessions/start",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"tableNumber\": 99\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('Table not found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/sessions/active — missing query params (400)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/active"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/sessions/active — no active session (404)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/active?restaurantId={{restaurantId}}&tableNumber=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "active"],
+              "query": [
+                { "key": "restaurantId", "value": "{{restaurantId}}" },
+                { "key": "tableNumber", "value": "1" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404 — session was closed in section 3', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('No active session for this table');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/sessions/not-a-valid-id — malformed ObjectId (400)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/not-a-valid-id"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('Invalid session id');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/sessions/:sessionId — session not found (404)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sessions/507f1f77bcf86cd799439099"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('Session not found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PATCH /api/sessions/:sessionId/close — no token (401)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}/close"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PATCH /api/sessions/:sessionId/close — already closed (400)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/sessions/{{sessionId}}/close"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Response has success:false', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.false;",
+                  "  pm.expect(json.message).to.equal('Session is already closed');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/sessions/start — new session after close (201)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/sessions/start",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"tableNumber\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('New session has incremented sessionNumber', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.created).to.equal(true);",
+                  "  pm.expect(json.session.sessionNumber).to.be.at.least(2);",
+                  "  pm.expect(json.session.status).to.equal('active');",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.session && json.session._id) {",
+                  "  pm.collectionVariables.set('sessionId', json.session._id);",
+                  "}"
                 ]
               }
             }
