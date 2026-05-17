@@ -16,8 +16,6 @@
   <!-- Dropdown menus -->
   <ul id="manageDropdown" class="dropdown-content">
     <li><a href="owners.html">Manage Owners</a></li>
-    <li><a href="#restaurants-section">Manage Restaurants</a></li>
-    <li><a href="#restaurants-section">Set Tables Count</a></li>
   </ul>
 
   <ul id="adminDropdown" class="dropdown-content">
@@ -76,12 +74,31 @@
       </div>
     </div>
 
-    <div class="row">
+    <div class="dashboard-two-column">
       <div class="col s12 m6">
         <div class="card">
           <div class="card-content">
             <span class="card-title">Pending Owner Requests</span>
-            <div id="pendingOwnersCards" class="row"></div>
+
+            <div class="table-responsive">
+              <table class="striped highlight">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody id="pendingOwnersTable">
+                  <tr>
+                    <td colspan="4" class="center-align">Loading pending owners...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
           </div>
         </div>
       </div>
@@ -109,8 +126,8 @@
           </div>
         </div>
       </div>
-
     </div>
+  </div>
   </div>
 
   <div id="menuModal" class="modal custom-modal modal-fixed-footer">

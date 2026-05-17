@@ -60,13 +60,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   const pendingOwnerSearch = document.getElementById("pendingOwnerSearch");
+
   if (pendingOwnerSearch) {
     pendingOwnerSearch.addEventListener("input", () => {
-      renderPendingOwnerCards(pendingOwnersList);
+      renderPendingOwners();
     });
   }
 
-  if (document.getElementById("pendingOwnerCards")) {
+  if (document.getElementById("pendingOwnersTable")) {
     loadPendingOwners();
   }
 
@@ -113,84 +114,6 @@ async function apiRequest(endpoint, method = "GET", body = null) {
   return data;
 }
 
-async function loadPendingOwners() {
-  const cardsContainer = document.getElementById("pendingOwnersCards");
-
-  if (!cardsContainer) return;
-
-  try {
-    const owners = await apiRequest("/admin/owners/pending");
-    pendingOwnersList = owners || [];
-
-    renderPendingOwnerCards(pendingOwnersList);
-
-  } catch (error) {
-    cardsContainer.innerHTML = `
-      <div class="col s12">
-        <div class="card-panel red-text center-align">${error.message}</div>
-      </div>
-    `;
-  }
-}
-
-function renderPendingOwners(owners) {
-  const container = document.getElementById("pendingOwnersCards");
-  const searchInput = document.getElementById("pendingOwnerSearch");
-
-  if (!container) return;
-
-  const searchText = searchInput
-    ? searchInput.value.toLowerCase().trim()
-    : "";
-
-  const filteredOwners = owners.filter(owner => {
-    const name = owner.name || "";
-    const email = owner.email || "";
-    const status = owner.status || "pending";
-
-    return (
-      name.toLowerCase().includes(searchText) ||
-      email.toLowerCase().includes(searchText) ||
-      status.toLowerCase().includes(searchText)
-    );
-  });
-
-  if (!filteredOwners.length) {
-    container.innerHTML = `
-      <div class="col s12">
-        <div class="card-panel center-align">No pending owners found</div>
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = filteredOwners.map(owner => `
-    <div class="col s12 m6 l4">
-      <div class="card pending-owner-card">
-        <div class="card-content">
-          <span class="card-title">${owner.name || "-"}</span>
-          <p><strong>Email:</strong> ${owner.email || "-"}</p>
-          <p>
-            <strong>Status:</strong>
-            <span class="badge-status badge-pending">
-              ${owner.status || "pending"}
-            </span>
-          </p>
-        </div>
-
-        <div class="card-action pending-owner-actions">
-          <button class="btn-small green" onclick="approveOwner('${owner._id}')">
-            Approve
-          </button>
-
-          <button class="btn-small red" onclick="rejectOwner('${owner._id}')">
-            Deny
-          </button>
-        </div>
-      </div>
-    </div>
-  `).join("");
-}
 
 async function loadRestaurants() {
   const tableBody = document.getElementById("restaurantsTable");
@@ -233,7 +156,7 @@ function renderRestaurants(restaurants) {
   });
 
   if (restaurantCount) {
-    restaurantCount.textContent = restaurantsList.length;
+    restaurantCount.textContent = filteredRestaurants.length;
   }
 
   if (!filteredRestaurants.length) {
@@ -288,10 +211,13 @@ function renderOwners(owners) {
   if (!tableBody) return;
 
   const filteredOwners = owners.filter(owner => {
+    if("pendingRestaurantName" in owner) {
+      return ;
+    }
     const name = owner.name || "";
     const email = owner.email || "";
     const status = owner.status || "";
-    const restaurantName = owner.restaurantName || owner.restaurant?.name || "";
+    const restaurantName = owner.restaurantId.name || "-";
 
     return (
       name.toLowerCase().includes(searchText) ||
@@ -300,7 +226,10 @@ function renderOwners(owners) {
       restaurantName.toLowerCase().includes(searchText)
     );
   });
-
+  const ownerCount = document.getElementById("ownerCount");
+  if (ownerCount) {
+    ownerCount.textContent = filteredOwners.length;
+  }
   if (!filteredOwners.length) {
     tableBody.innerHTML = `
       <tr>
@@ -310,7 +239,15 @@ function renderOwners(owners) {
     return;
   }
 
-  tableBody.innerHTML = filteredOwners.map(owner => `
+  tableBody.innerHTML = filteredOwners.map(owner => {
+    const ownerRowId = ownerIdFromDoc(owner);
+
+    const actionCell =
+      owner.status === "disabled"
+        ? `<button type="button" class="btn-small green action-btn" onclick="restoreOwnerAccess('${escapeQuotes(ownerRowId)}')"${!ownerRowId ? " disabled" : ""}>Restore Access</button>`
+        : `<button type="button" class="btn-small red action-btn" onclick="removeOwnerAccess('${escapeQuotes(ownerRowId)}')"${!ownerRowId ? " disabled" : ""}>Remove Access</button>`;
+
+    return `
     <tr>
       <td>${owner.name || "-"}</td>
       <td>${owner.email || "-"}</td>
@@ -323,7 +260,7 @@ function renderOwners(owners) {
           ${owner.status || "-"}
         </span>
       </td>
-      <td>${owner.restaurantName || owner.restaurant?.name || "-"}</td>
+      <td>${owner.restaurantId.name || "-"}</td>
       <td>
         <button
           class="btn-small red action-btn"
@@ -333,13 +270,107 @@ function renderOwners(owners) {
         </button>
       </td>
     </tr>
-  `).join("");
+`;
+  }).join("");
 }
 
 function getQueryParam(paramName) {
   const params = new URLSearchParams(window.location.search);
   return params.get(paramName);
 }
+
+
+async function loadPendingOwners() {
+  const tableBody = document.getElementById("pendingOwnersTable");
+
+  if (!tableBody) return;
+
+  try {
+    const response = await apiRequest("/admin/owners/pending");
+    pendingOwnersList = response.owners || [];
+    const pendingCount = document.getElementById("pendingCount");
+
+    if (pendingCount) {
+      pendingCount.textContent = pendingOwnersList.length;
+    }
+
+    renderPendingOwners();
+
+  } catch (error) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="4" class="center-align red-text">
+          ${error.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function renderPendingOwners() {
+  const tableBody = document.getElementById("pendingOwnersTable");
+  const searchInput = document.getElementById("pendingOwnerSearch");
+
+  if (!tableBody) return;
+
+  const searchText = searchInput
+    ? searchInput.value.toLowerCase().trim()
+    : "";
+
+  const filteredOwners = pendingOwnersList.filter(owner => {
+    const name = owner.name || "";
+    const email = owner.email || "";
+    const status = owner.status || "pending";
+
+    return (
+      name.toLowerCase().includes(searchText) ||
+      email.toLowerCase().includes(searchText) ||
+      status.toLowerCase().includes(searchText)
+    );
+  });
+
+  if (!filteredOwners.length) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="4" class="center-align">
+          No pending owners found
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tableBody.innerHTML = filteredOwners.map(owner => `
+    <tr>
+      <td>${owner.name || "-"}</td>
+
+      <td>${owner.email || "-"}</td>
+
+      <td>
+        <span class="badge-status badge-pending">
+          ${owner.status || "pending"}
+        </span>
+      </td>
+
+      <td>
+        <button
+          class="btn-small green action-btn"
+          onclick="approveOwner('${owner._id}')"
+        >
+          Approve
+        </button>
+
+        <button
+          class="btn-small red action-btn"
+          onclick="rejectOwner('${owner._id}')"
+        >
+          Deny
+        </button>
+      </td>
+    </tr>
+  `).join("");
+}
+
 
 async function loadIndividualRestaurantTables() {
   const restaurantId = getQueryParam("id");
@@ -373,8 +404,6 @@ async function loadIndividualRestaurantTables() {
     );
 
     const tables = response.tables || response.data || response || [];
-
-    console.log("Loaded tables:", tables);
 
     if (!tables.length) {
       container.innerHTML = `
@@ -485,11 +514,14 @@ async function rejectOwner(ownerId) {
 }
 
 async function removeOwnerAccess(ownerId) {
+  const id = sanitizeOwnerActionId(ownerId);
+  if (!id) return;
+
   const confirmed = confirm("Are you sure you want to remove this owner's access?");
   if (!confirmed) return;
 
   try {
-    await apiRequest(`/admin/owners/${ownerId}/disable`, "PATCH");
+    await apiRequest(`/admin/owners/${id}/disable`, "PATCH");
     M.toast({ html: "Owner access removed successfully" });
 
     if (document.getElementById("ownersTable")) {
@@ -498,6 +530,39 @@ async function removeOwnerAccess(ownerId) {
   } catch (error) {
     M.toast({ html: error.message });
   }
+}
+
+async function restoreOwnerAccess(ownerId) {
+  const id = sanitizeOwnerActionId(ownerId);
+  if (!id) return;
+
+  const confirmed = confirm("Restore login and menu access for this owner?");
+  if (!confirmed) return;
+
+  try {
+    await apiRequest(`/admin/owners/${id}/enable`, "PATCH");
+    M.toast({ html: "Owner access restored" });
+
+    if (document.getElementById("ownersTable")) {
+      loadOwners();
+    }
+  } catch (error) {
+    M.toast({ html: error.message });
+  }
+}
+
+function ownerIdFromDoc(owner) {
+  const raw = owner && (owner._id != null ? owner._id : owner.id);
+  return raw != null ? String(raw) : "";
+}
+
+function sanitizeOwnerActionId(ownerId) {
+  const id = String(ownerId ?? "").trim();
+  if (!id || id === "undefined") {
+    M.toast({ html: "Missing owner ID — reload the owners list." });
+    return null;
+  }
+  return id;
 }
 
 function openTablesModal(restaurantId, restaurantName) {
@@ -559,5 +624,5 @@ async function saveTables() {
 }
 
 function escapeQuotes(text) {
-  return String(text).replace(/'/g, "\\'");
+  return String(text || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
