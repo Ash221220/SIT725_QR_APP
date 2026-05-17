@@ -25,6 +25,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/pages', 'login.html'));
 });
 
+app.get('/menu/:restaurantId', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/pages', 'menu.html'));
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/menu', menuRoutes);
