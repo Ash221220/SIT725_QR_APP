@@ -13,6 +13,7 @@
  *   PATCH  /api/menu/my/:itemId/availability
  *   DELETE /api/menu/my/:itemId
  *   GET    /api/menu/:restaurantId   (admin only)
+ *   GET    /api/menu/public/:restaurantId   (guest, no auth)
  */
 
 const request    = require('supertest');
@@ -353,5 +354,43 @@ describe('GET /api/menu/:restaurantId — integration (admin only)', () => {
       .set('Authorization', `Bearer ${adminLoginRes.body.token}`);
 
     expect(res.status).to.equal(400);
+  });
+});
+
+// ─── GET /api/menu/public/:restaurantId (guest) ───────────────────────────────
+
+describe('GET /api/menu/public/:restaurantId — integration (no auth)', () => {
+  it('returns only available items without a token', async () => {
+    const { ownerToken, restaurantId } = await seedApprovedOwner('publicmenu');
+
+    await request(app)
+      .post('/api/menu/my')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(validItem());
+
+    const unavailableRes = await request(app)
+      .post('/api/menu/my')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ ...validItem(), name: 'Sold Out Soup', isAvailable: false });
+
+    const res = await request(app).get(`/api/menu/public/${restaurantId}`);
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.menu).to.be.an('array').with.lengthOf(1);
+    expect(res.body.menu[0].name).to.equal('Margherita Pizza');
+    expect(res.body.menu.every((item) => item.isAvailable === true)).to.equal(true);
+    expect(res.body.menu.some((item) => item._id === unavailableRes.body.item._id)).to.equal(false);
+  });
+
+  it('returns 400 when restaurantId is not a valid ObjectId', async () => {
+    const res = await request(app).get('/api/menu/public/not-a-valid-id');
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 404 when restaurant does not exist', async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+    const res = await request(app).get(`/api/menu/public/${fakeId}`);
+    expect(res.status).to.equal(404);
   });
 });

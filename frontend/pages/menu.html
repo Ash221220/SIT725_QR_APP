@@ -1,1 +1,42 @@
-<!-- Purpose: Public QR menu display page for a specific restaurant (/menu/:restaurantId flow). -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu - QR Restaurant</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+
+<body class="guest-menu-page">
+
+  <nav class="teal darken-2">
+    <div class="nav-wrapper container">
+      <span class="brand-logo">Our Menu</span>
+      <ul class="right">
+        <li><span id="tableLabel" class="table-badge hide"></span></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container section">
+    <div id="menuStatus" class="center-align grey-text text-darken-1">
+      <p>Loading menu...</p>
+    </div>
+
+    <div id="menuError" class="hide">
+      <div class="card-panel red lighten-5 red-text text-darken-2 center-align"></div>
+    </div>
+
+    <div id="menuContainer"></div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/menu.js"></script>
+</body>
+
+</html>
