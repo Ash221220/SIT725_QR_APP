@@ -355,22 +355,39 @@ function initializeAnalytics() {
 }
 
 async function loadAnalytics() {
-  try {
-    const fromDateInput = document.getElementById("analyticsFromDate");
-    const toDateInput = document.getElementById("analyticsToDate");
+  const fromDateInput = document.getElementById("analyticsFromDate");
+  const toDateInput = document.getElementById("analyticsToDate");
 
-    const from = fromDateInput ? fromDateInput.value : null;
-    const to = toDateInput ? toDateInput.value : null;
+  const from = fromDateInput ? fromDateInput.value : null;
+  const to = toDateInput ? toDateInput.value : null;
 
-    const queryParams = new URLSearchParams();
-    if (from) queryParams.append("from", from);
-    if (to) queryParams.append("to", to);
+  const queryParams = new URLSearchParams();
+  if (from) queryParams.append("from", from);
+  if (to) queryParams.append("to", to);
+  const query = queryParams.toString() ? `?${queryParams.toString()}` : "";
 
-    const endpoint = `/analytics/my/summary${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
-    const response = await ownerApiRequest(endpoint);
-    displayAnalytics(response.summary);
-  } catch (error) {
-    displayAnalyticsError(error.message);
+  const [summaryResult, peakResult, forecastResult] = await Promise.allSettled([
+    ownerApiRequest(`/analytics/my/summary${query}`),
+    ownerApiRequest(`/analytics/my/peak-hours${query}`),
+    ownerApiRequest(`/analytics/my/item-forecast${query}`),
+  ]);
+
+  if (summaryResult.status === "fulfilled") {
+    displayAnalytics(summaryResult.value.summary);
+  } else {
+    displayAnalyticsError(summaryResult.reason.message);
+  }
+
+  if (peakResult.status === "fulfilled") {
+    displayPeakHours(peakResult.value.peakHours);
+  } else {
+    displayPeakHoursError();
+  }
+
+  if (forecastResult.status === "fulfilled") {
+    displayForecast(forecastResult.value.forecast);
+  } else {
+    displayForecastError();
   }
 }
 
@@ -411,6 +428,75 @@ function displayAnalyticsError(errorMessage) {
   if (busiestTableEl) busiestTableEl.textContent = errorText;
 
   M.toast({ html: `Failed to load analytics: ${errorMessage}` });
+}
+
+function displayPeakHours(payload) {
+  const tableBody = document.getElementById("analyticsPeakHoursTable");
+  if (!tableBody) return;
+
+  const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const peakHoursByDay = payload.peakHoursByDay || {};
+  const rows = dayOrder
+    .filter((day) => peakHoursByDay[day])
+    .map((day) => {
+      const item = peakHoursByDay[day];
+      const hoursText = (item.peakHours || []).map(formatHourLabel).join(", ") || "N/A";
+      return `
+        <tr>
+          <td>${day}</td>
+          <td>${hoursText}</td>
+          <td>${item.confidence || "N/A"}</td>
+        </tr>
+      `;
+    });
+
+  tableBody.innerHTML = rows.length
+    ? rows.join("")
+    : '<tr><td colspan="3" class="center-align">No peak-hour data available</td></tr>';
+}
+
+function displayPeakHoursError() {
+  const tableBody = document.getElementById("analyticsPeakHoursTable");
+  if (!tableBody) return;
+  tableBody.innerHTML = '<tr><td colspan="3" class="center-align red-text">Unable to load peak hours</td></tr>';
+}
+
+function displayForecast(payload) {
+  const tableBody = document.getElementById("analyticsForecastTable");
+  if (!tableBody) return;
+
+  const items = (payload.forecastedItems || []).slice(0, 7);
+  tableBody.innerHTML = items.length
+    ? items.map((item) => {
+      const trendText = formatTrend(item.trend, item.trendPercentage);
+      return `
+          <tr>
+            <td>${item.itemName}</td>
+            <td><span class="analytics-trend ${item.trend || "stable"}">${trendText}</span></td>
+            <td>${Number(item.forecast || 0).toFixed(2)}</td>
+          </tr>
+        `;
+    }).join("")
+    : '<tr><td colspan="3" class="center-align">No forecast data available</td></tr>';
+}
+
+function displayForecastError() {
+  const tableBody = document.getElementById("analyticsForecastTable");
+  if (!tableBody) return;
+  tableBody.innerHTML = '<tr><td colspan="3" class="center-align red-text">Unable to load forecast</td></tr>';
+}
+
+function formatHourLabel(hour) {
+  const nextHour = (hour + 1) % 24;
+  const start = `${String(hour).padStart(2, "0")}:00`;
+  const end = `${String(nextHour).padStart(2, "0")}:00`;
+  return `${start}-${end}`;
+}
+
+function formatTrend(trend, percentage) {
+  if (trend === "up") return `Up ${percentage || 0}%`;
+  if (trend === "down") return `Down ${percentage || 0}%`;
+  return "Stable";
 }
 
 function formatDateForInput(date) {

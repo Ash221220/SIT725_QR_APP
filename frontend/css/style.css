@@ -440,6 +440,30 @@ td {
   margin-bottom: 0;
 }
 
+.analytics-detail-row {
+  margin-top: 1.25rem;
+}
+
+.analytics-table {
+  min-width: 100%;
+}
+
+.analytics-trend {
+  font-weight: 600;
+}
+
+.analytics-trend.up {
+  color: #2e7d32;
+}
+
+.analytics-trend.down {
+  color: #bf360c;
+}
+
+.analytics-trend.stable {
+  color: #616161;
+}
+
 .analytics-stat-card {
   background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
   padding: 1.5rem;

@@ -31,6 +31,42 @@ async function getMySummary(req, res, next) {
   }
 }
 
+function resolveDaysFromQuery(from, to) {
+  if (!from || !to) return 30;
+  const start = new Date(from);
+  const end = new Date(to);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return 30;
+  }
+  const diffMs = end.getTime() - start.getTime();
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  return Math.min(Math.max(days, 1), 365);
+}
+
+async function getMyPeakHours(req, res, next) {
+  try {
+    const owner = await getOwnerContext(req.user.id);
+    const days = resolveDaysFromQuery(req.query.from, req.query.to);
+    const peakHours = await analyticsService.getPeakHours(owner.restaurantId, days);
+    return res.status(200).json({ success: true, peakHours });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getMyItemForecast(req, res, next) {
+  try {
+    const owner = await getOwnerContext(req.user.id);
+    const days = resolveDaysFromQuery(req.query.from, req.query.to);
+    const forecast = await analyticsService.getItemSalesForecast(owner.restaurantId, days);
+    return res.status(200).json({ success: true, forecast });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   getMySummary,
+  getMyPeakHours,
+  getMyItemForecast,
 };
