@@ -67,6 +67,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   loadOwnerMenu();
+  initializeAnalytics();
+  loadAnalytics();
 });
 
 async function ownerApiRequest(endpoint, method = "GET", body = null) {
@@ -325,6 +327,101 @@ async function deleteMenuItem(itemId) {
   } catch (error) {
     M.toast({ html: error.message });
   }
+}
+
+function initializeAnalytics() {
+  const fromDateInput = document.getElementById("analyticsFromDate");
+  const toDateInput = document.getElementById("analyticsToDate");
+  const refreshBtn = document.getElementById("refreshAnalyticsBtn");
+
+  // Set default date range (last 30 days)
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  if (fromDateInput) {
+    fromDateInput.value = formatDateForInput(thirtyDaysAgo);
+    fromDateInput.addEventListener("change", loadAnalytics);
+  }
+
+  if (toDateInput) {
+    toDateInput.value = formatDateForInput(today);
+    toDateInput.addEventListener("change", loadAnalytics);
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", loadAnalytics);
+  }
+}
+
+async function loadAnalytics() {
+  try {
+    const fromDateInput = document.getElementById("analyticsFromDate");
+    const toDateInput = document.getElementById("analyticsToDate");
+
+    const from = fromDateInput ? fromDateInput.value : null;
+    const to = toDateInput ? toDateInput.value : null;
+
+    const queryParams = new URLSearchParams();
+    if (from) queryParams.append("from", from);
+    if (to) queryParams.append("to", to);
+
+    const endpoint = `/analytics/my/summary${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+    const response = await ownerApiRequest(endpoint);
+    displayAnalytics(response.summary);
+  } catch (error) {
+    displayAnalyticsError(error.message);
+  }
+}
+
+function displayAnalytics(summary) {
+  const totalOrdersEl = document.getElementById("analyticsTotalOrders");
+  const totalRevenueEl = document.getElementById("analyticsTotalRevenue");
+  const topItemEl = document.getElementById("analyticsTopItem");
+  const busiestTableEl = document.getElementById("analyticsBusiestTable");
+
+  if (totalOrdersEl) {
+    totalOrdersEl.textContent = summary.totalOrders || 0;
+  }
+
+  if (totalRevenueEl) {
+    totalRevenueEl.textContent = formatCurrency(summary.totalRevenue || 0);
+  }
+
+  if (topItemEl) {
+    topItemEl.textContent = summary.topItem || "N/A";
+  }
+
+  if (busiestTableEl) {
+    busiestTableEl.textContent = summary.busiestTable ? `Table ${summary.busiestTable}` : "N/A";
+  }
+}
+
+function displayAnalyticsError(errorMessage) {
+  const totalOrdersEl = document.getElementById("analyticsTotalOrders");
+  const totalRevenueEl = document.getElementById("analyticsTotalRevenue");
+  const topItemEl = document.getElementById("analyticsTopItem");
+  const busiestTableEl = document.getElementById("analyticsBusiestTable");
+
+  const errorText = "Error";
+
+  if (totalOrdersEl) totalOrdersEl.textContent = errorText;
+  if (totalRevenueEl) totalRevenueEl.textContent = errorText;
+  if (topItemEl) topItemEl.textContent = errorText;
+  if (busiestTableEl) busiestTableEl.textContent = errorText;
+
+  M.toast({ html: `Failed to load analytics: ${errorMessage}` });
+}
+
+function formatDateForInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatCurrency(amount) {
+  return `$${Number(amount).toFixed(2)}`;
 }
 
 function normalizeCategory(category) {
