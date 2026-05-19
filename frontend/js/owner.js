@@ -67,6 +67,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   loadOwnerMenu();
+  initializeAnalytics();
+  loadAnalytics();
 });
 
 async function ownerApiRequest(endpoint, method = "GET", body = null) {
@@ -325,6 +327,187 @@ async function deleteMenuItem(itemId) {
   } catch (error) {
     M.toast({ html: error.message });
   }
+}
+
+function initializeAnalytics() {
+  const fromDateInput = document.getElementById("analyticsFromDate");
+  const toDateInput = document.getElementById("analyticsToDate");
+  const refreshBtn = document.getElementById("refreshAnalyticsBtn");
+
+  // Set default date range (last 30 days)
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  if (fromDateInput) {
+    fromDateInput.value = formatDateForInput(thirtyDaysAgo);
+    fromDateInput.addEventListener("change", loadAnalytics);
+  }
+
+  if (toDateInput) {
+    toDateInput.value = formatDateForInput(today);
+    toDateInput.addEventListener("change", loadAnalytics);
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", loadAnalytics);
+  }
+}
+
+async function loadAnalytics() {
+  const fromDateInput = document.getElementById("analyticsFromDate");
+  const toDateInput = document.getElementById("analyticsToDate");
+
+  const from = fromDateInput ? fromDateInput.value : null;
+  const to = toDateInput ? toDateInput.value : null;
+
+  const queryParams = new URLSearchParams();
+  if (from) queryParams.append("from", from);
+  if (to) queryParams.append("to", to);
+  const query = queryParams.toString() ? `?${queryParams.toString()}` : "";
+
+  const [summaryResult, peakResult, forecastResult] = await Promise.allSettled([
+    ownerApiRequest(`/analytics/my/summary${query}`),
+    ownerApiRequest(`/analytics/my/peak-hours${query}`),
+    ownerApiRequest(`/analytics/my/item-forecast${query}`),
+  ]);
+
+  if (summaryResult.status === "fulfilled") {
+    displayAnalytics(summaryResult.value.summary);
+  } else {
+    displayAnalyticsError(summaryResult.reason.message);
+  }
+
+  if (peakResult.status === "fulfilled") {
+    displayPeakHours(peakResult.value.peakHours);
+  } else {
+    displayPeakHoursError();
+  }
+
+  if (forecastResult.status === "fulfilled") {
+    displayForecast(forecastResult.value.forecast);
+  } else {
+    displayForecastError();
+  }
+}
+
+function displayAnalytics(summary) {
+  const totalOrdersEl = document.getElementById("analyticsTotalOrders");
+  const totalRevenueEl = document.getElementById("analyticsTotalRevenue");
+  const topItemEl = document.getElementById("analyticsTopItem");
+  const busiestTableEl = document.getElementById("analyticsBusiestTable");
+
+  if (totalOrdersEl) {
+    totalOrdersEl.textContent = summary.totalOrders || 0;
+  }
+
+  if (totalRevenueEl) {
+    totalRevenueEl.textContent = formatCurrency(summary.totalRevenue || 0);
+  }
+
+  if (topItemEl) {
+    topItemEl.textContent = summary.topItem || "N/A";
+  }
+
+  if (busiestTableEl) {
+    busiestTableEl.textContent = summary.busiestTable ? `Table ${summary.busiestTable}` : "N/A";
+  }
+}
+
+function displayAnalyticsError(errorMessage) {
+  const totalOrdersEl = document.getElementById("analyticsTotalOrders");
+  const totalRevenueEl = document.getElementById("analyticsTotalRevenue");
+  const topItemEl = document.getElementById("analyticsTopItem");
+  const busiestTableEl = document.getElementById("analyticsBusiestTable");
+
+  const errorText = "Error";
+
+  if (totalOrdersEl) totalOrdersEl.textContent = errorText;
+  if (totalRevenueEl) totalRevenueEl.textContent = errorText;
+  if (topItemEl) topItemEl.textContent = errorText;
+  if (busiestTableEl) busiestTableEl.textContent = errorText;
+
+  M.toast({ html: `Failed to load analytics: ${errorMessage}` });
+}
+
+function displayPeakHours(payload) {
+  const tableBody = document.getElementById("analyticsPeakHoursTable");
+  if (!tableBody) return;
+
+  const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const peakHoursByDay = payload.peakHoursByDay || {};
+  const rows = dayOrder
+    .filter((day) => peakHoursByDay[day])
+    .map((day) => {
+      const item = peakHoursByDay[day];
+      const hoursText = (item.peakHours || []).map(formatHourLabel).join(", ") || "N/A";
+      return `
+        <tr>
+          <td>${day}</td>
+          <td>${hoursText}</td>
+          <td>${item.confidence || "N/A"}</td>
+        </tr>
+      `;
+    });
+
+  tableBody.innerHTML = rows.length
+    ? rows.join("")
+    : '<tr><td colspan="3" class="center-align">No peak-hour data available</td></tr>';
+}
+
+function displayPeakHoursError() {
+  const tableBody = document.getElementById("analyticsPeakHoursTable");
+  if (!tableBody) return;
+  tableBody.innerHTML = '<tr><td colspan="3" class="center-align red-text">Unable to load peak hours</td></tr>';
+}
+
+function displayForecast(payload) {
+  const tableBody = document.getElementById("analyticsForecastTable");
+  if (!tableBody) return;
+
+  const items = (payload.forecastedItems || []).slice(0, 7);
+  tableBody.innerHTML = items.length
+    ? items.map((item) => {
+      const trendText = formatTrend(item.trend, item.trendPercentage);
+      return `
+          <tr>
+            <td>${item.itemName}</td>
+            <td><span class="analytics-trend ${item.trend || "stable"}">${trendText}</span></td>
+            <td>${Number(item.forecast || 0).toFixed(2)}</td>
+          </tr>
+        `;
+    }).join("")
+    : '<tr><td colspan="3" class="center-align">No forecast data available</td></tr>';
+}
+
+function displayForecastError() {
+  const tableBody = document.getElementById("analyticsForecastTable");
+  if (!tableBody) return;
+  tableBody.innerHTML = '<tr><td colspan="3" class="center-align red-text">Unable to load forecast</td></tr>';
+}
+
+function formatHourLabel(hour) {
+  const nextHour = (hour + 1) % 24;
+  const start = `${String(hour).padStart(2, "0")}:00`;
+  const end = `${String(nextHour).padStart(2, "0")}:00`;
+  return `${start}-${end}`;
+}
+
+function formatTrend(trend, percentage) {
+  if (trend === "up") return `Up ${percentage || 0}%`;
+  if (trend === "down") return `Down ${percentage || 0}%`;
+  return "Stable";
+}
+
+function formatDateForInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatCurrency(amount) {
+  return `$${Number(amount).toFixed(2)}`;
 }
 
 function normalizeCategory(category) {
