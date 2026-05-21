@@ -1,8 +1,3 @@
-/* ==========================================================================
-   style.css — Shared, dashboard, admin & owner-dashboard styles
-   ========================================================================== */
-
-/* ── Base ─────────────────────────────────────────────────────────── */
 body {
   font-family: Arial, sans-serif;
   background: #f5f6fa;
@@ -42,7 +37,6 @@ nav ul li a.dropdown-trigger {
   border-radius: 12px;
 }
 
-/* ── Two-column dashboard layout ──────────────────────────────────── */
 .dashboard-two-column {
   display: flex;
   gap: 20px;
@@ -78,7 +72,6 @@ nav ul li a.dropdown-trigger {
   }
 }
 
-/* ── Tables ───────────────────────────────────────────────────────── */
 .table-responsive {
   overflow-x: auto;
   width: 100%;
@@ -119,7 +112,6 @@ td {
   vertical-align: middle;
 }
 
-/* ── Shared components ────────────────────────────────────────────── */
 .action-btn {
   margin: 3px;
 }
@@ -149,7 +141,6 @@ td {
 .dietary-badge.veg     { background: #2e7d32; }
 .dietary-badge.non-veg { background: #bf360c; }
 
-/* ── Modals ───────────────────────────────────────────────────────── */
 .custom-modal {
   width: 85% !important;
   height: 95vh !important;
@@ -170,14 +161,12 @@ td {
   flex-shrink: 0;
 }
 
-/* ── Inputs ───────────────────────────────────────────────────────── */
 .input-field input[type="text"] {
   background: #fff;
   padding-left: 12px;
   border-radius: 8px;
 }
 
-/* ── Restaurant / admin links ─────────────────────────────────────── */
 .restaurant-link {
   color: #00695c;
   font-weight: 600;
@@ -257,7 +246,6 @@ td {
   border-radius: 8px;
 }
 
-/* ── Pending owner cards ──────────────────────────────────────────── */
 .pending-owner-card {
   border-radius: 14px;
   min-height: 220px;
@@ -282,7 +270,6 @@ td {
   border-radius: 6px;
 }
 
-/* ── Owner dashboard toolbar & menu table ─────────────────────────── */
 .owner-toolbar {
   display: flex;
   justify-content: space-between;
@@ -323,7 +310,6 @@ td {
   border-bottom: none;
 }
 
-/* ── Owner item image preview ─────────────────────────────────────── */
 .owner-image-preview-wrap {
   margin: 8px 0 16px;
 }
@@ -336,7 +322,6 @@ td {
   border: 1px solid #e0e0e0;
 }
 
-/* ── Analytics ────────────────────────────────────────────────────── */
 .analytics-card {
   margin-bottom: 2rem;
 }

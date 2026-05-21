@@ -1,5 +1,3 @@
-// ─── Bootstrap ───────────────────────────────────────────────────────────────
-
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -17,8 +15,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   await Promise.all([loadProfile(), loadRestaurant()]);
 });
 
-// ─── Auth helper ──────────────────────────────────────────────────────────────
-
 function authHeaders() {
   return {
     "Content-Type": "application/json",
@@ -35,8 +31,6 @@ async function apiRequest(method, endpoint, body) {
   return data;
 }
 
-// ─── Logout ───────────────────────────────────────────────────────────────────
-
 function setupLogout() {
   const doLogout = (e) => {
     e.preventDefault();
@@ -47,8 +41,6 @@ function setupLogout() {
   document.getElementById("logoutBtn")?.addEventListener("click", doLogout);
   document.getElementById("logoutBtnCard")?.addEventListener("click", doLogout);
 }
-
-// ─── Load & display profile ───────────────────────────────────────────────────
 
 async function loadProfile() {
   try {
@@ -68,12 +60,9 @@ function displayProfile(user) {
   setTextById("viewName", user.name || "–");
   setTextById("viewEmail", user.email || "–");
 
-  // Keep localStorage in sync
   const stored = JSON.parse(localStorage.getItem("user") || "{}");
   localStorage.setItem("user", JSON.stringify({ ...stored, ...user }));
 }
-
-// ─── Personal Info section ────────────────────────────────────────────────────
 
 function setupPersonalInfoSection() {
   const viewEl = document.getElementById("profileInfoView");
@@ -131,8 +120,6 @@ function setupPersonalInfoSection() {
   });
 }
 
-// ─── Password section ─────────────────────────────────────────────────────────
-
 function setupPasswordSection() {
   const saveBtn = document.getElementById("savePasswordBtn");
   const errorEl = document.getElementById("passwordError");
@@ -173,8 +160,6 @@ function setupPasswordSection() {
     }
   });
 }
-
-// ─── Restaurant section ───────────────────────────────────────────────────────
 
 async function loadRestaurant() {
   try {
@@ -251,8 +236,6 @@ function setupRestaurantSection() {
     }
   });
 }
-
-// ─── Utilities ────────────────────────────────────────────────────────────────
 
 function setTextById(id, text) {
   const el = document.getElementById(id);

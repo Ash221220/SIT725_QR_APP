@@ -2,11 +2,8 @@ const MENU_CATEGORIES = ["Appetizers", "Mains", "Desserts", "Sides", "Beverages"
 const GUEST_CONTEXT_KEY = "guestContext";
 const SESSION_KEY = "guestSessionId";
 
-// Local mirrors so we can update card buttons without extra API calls
-let cartState = {};      // { menuItemId: quantity }
-let menuItemNames = {};  // { menuItemId: name }
-
-// ─── Initialisation ──────────────────────────────────────────────────────────
+let cartState = {};
+let menuItemNames = {};
 
 document.addEventListener("DOMContentLoaded", async () => {
   M.Modal.init(document.querySelectorAll(".modal"));
@@ -31,8 +28,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await loadPublicMenu(restaurantId);
 });
-
-// ─── URL helpers ─────────────────────────────────────────────────────────────
 
 function getRestaurantIdFromUrl() {
   const parts = window.location.pathname.split("/").filter(Boolean);
@@ -61,8 +56,6 @@ function getGuestContext() {
   }
 }
 
-// ─── Session ─────────────────────────────────────────────────────────────────
-
 async function startSession(restaurantId, tableNumber) {
   if (!tableNumber) return;
 
@@ -84,8 +77,6 @@ async function startSession(restaurantId, tableNumber) {
 function getSessionId() {
   return sessionStorage.getItem(SESSION_KEY);
 }
-
-// ─── Menu loading & rendering ─────────────────────────────────────────────────
 
 function updateTableLabel(tableNumber) {
   const tableLabel = document.getElementById("tableLabel");
@@ -119,7 +110,6 @@ async function loadPublicMenu(restaurantId) {
     hideLoading();
     renderMenu(data.menu || []);
 
-    // After menu is rendered, hydrate card buttons with any existing cart items
     const sessionId = getSessionId();
     if (sessionId) {
       const cartRes = await fetch(`${API_BASE_URL}/cart/${sessionId}`);
@@ -160,7 +150,6 @@ function renderMenu(items) {
     return;
   }
 
-  // Store names for later button restoration
   items.forEach((item) => {
     menuItemNames[item._id] = item.name;
   });
@@ -264,8 +253,6 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;");
 }
 
-// ─── Cart state helpers ───────────────────────────────────────────────────────
-
 function syncCartState(cart) {
   cartState = {};
   (cart.items || []).forEach((item) => {
@@ -306,8 +293,6 @@ function updateMenuCardButton(menuItemId, quantity) {
   }
 }
 
-// ─── Cart drawer setup ────────────────────────────────────────────────────────
-
 function setupCartDrawer() {
   document.getElementById("openCartBtn")?.addEventListener("click", (e) => {
     e.preventDefault();
@@ -324,7 +309,6 @@ function setupCartDrawer() {
   document.getElementById("cartOverlay")?.addEventListener("click", closeCartDrawer);
   document.getElementById("placeOrderBtn")?.addEventListener("click", handlePlaceOrder);
 
-  // event delegation for add-to-cart and card qty buttons
   document.getElementById("menuContainer")?.addEventListener("click", async (e) => {
     const addBtn = e.target.closest(".add-to-cart-btn");
     const incBtn = e.target.closest(".mic-qty-card-inc");
@@ -341,7 +325,6 @@ function setupCartDrawer() {
     }
   });
 
-  // event delegation for +/- buttons inside cart drawer
   document.getElementById("cartItemsList")?.addEventListener("click", async (e) => {
     const incBtn = e.target.closest(".cart-qty-inc");
     const decBtn = e.target.closest(".cart-qty-dec");
@@ -365,8 +348,6 @@ function closeCartDrawer() {
   document.getElementById("cartOverlay")?.classList.add("hide");
   document.body.style.overflow = "";
 }
-
-// ─── Cart API calls ───────────────────────────────────────────────────────────
 
 async function handleAddToCart(menuItemId, itemName, btn) {
   const sessionId = getSessionId();
@@ -547,8 +528,6 @@ async function handlePlaceOrder() {
   }
 }
 
-// ─── Cart drawer rendering ────────────────────────────────────────────────────
-
 function renderCartDrawer(cart) {
   const itemsList = document.getElementById("cartItemsList");
   const emptyMsg = document.getElementById("cartEmpty");
@@ -610,8 +589,6 @@ function updateCartBadge(count) {
     floatingCount?.classList.add("hide");
   }
 }
-
-// ─── Order confirmation ───────────────────────────────────────────────────────
 
 function showOrderConfirmation(order) {
   const summaryBox = document.getElementById("orderSummaryBox");

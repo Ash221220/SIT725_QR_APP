@@ -1,16 +1,9 @@
-/* ==========================================================================
-   menu.css — Guest / Customer menu page styles
-   (cart drawer, floating button, order confirmation modal)
-   ========================================================================== */
-
-/* ── Page base ────────────────────────────────────────────────────── */
 .guest-menu-page {
   font-family: 'Inter', Arial, sans-serif;
   background: #f0f2f5;
   min-height: 100vh;
 }
 
-/* ── Nav ──────────────────────────────────────────────────────────── */
 .guest-nav {
   background: #00695c;
   box-shadow: 0 2px 8px rgba(0,0,0,0.18);
@@ -67,14 +60,12 @@
   letter-spacing: 0.3px;
 }
 
-/* ── Main content ─────────────────────────────────────────────────── */
 .guest-main {
   max-width: 960px;
   margin: 0 auto;
   padding: 24px 16px 110px;
 }
 
-/* ── Loading state ────────────────────────────────────────────────── */
 .menu-loading-state {
   text-align: center;
   padding: 64px 20px;
@@ -100,7 +91,6 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── Error panel ──────────────────────────────────────────────────── */
 .menu-error-panel {
   display: flex;
   align-items: center;
@@ -113,7 +103,6 @@
   font-size: 0.95rem;
 }
 
-/* ── Empty state ──────────────────────────────────────────────────── */
 .menu-empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -138,7 +127,6 @@
   margin: 0;
 }
 
-/* ── Category section ─────────────────────────────────────────────── */
 .menu-category-section {
   margin-bottom: 36px;
 }
@@ -165,7 +153,6 @@
   letter-spacing: 0.1px;
 }
 
-/* ── Items grid ───────────────────────────────────────────────────── */
 .menu-items-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -184,7 +171,6 @@
   }
 }
 
-/* ── Menu item card ───────────────────────────────────────────────── */
 .menu-item-card {
   background: #fff;
   border-radius: 14px;
@@ -231,7 +217,6 @@
   margin-bottom: 4px;
 }
 
-/* Veg / non-veg dot indicator */
 .dietary-dot {
   flex-shrink: 0;
   width: 13px;
@@ -301,7 +286,6 @@
   color: #00695c;
 }
 
-/* Add-to-cart round button */
 .mic-add-btn {
   display: flex;
   align-items: center;
@@ -334,7 +318,6 @@
   font-size: 1.15rem;
 }
 
-/* Inline qty control (replaces + button) */
 .mic-qty-ctrl {
   display: inline-flex;
   align-items: center;
@@ -378,7 +361,6 @@
   line-height: 1;
 }
 
-/* ── Cart nav icon ────────────────────────────────────────────────── */
 .cart-nav-btn {
   position: relative;
   display: flex;
@@ -414,7 +396,6 @@
   text-align: center;
 }
 
-/* ── Floating cart button ─────────────────────────────────────────── */
 .floating-cart-btn {
   position: fixed;
   bottom: 28px;
@@ -446,7 +427,6 @@
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
 }
 
-/* ── Cart drawer overlay ──────────────────────────────────────────── */
 .cart-overlay {
   position: fixed;
   inset: 0;
@@ -455,7 +435,6 @@
   backdrop-filter: blur(2px);
 }
 
-/* ── Cart drawer ──────────────────────────────────────────────────── */
 .cart-drawer {
   position: fixed;
   top: 0;
@@ -531,7 +510,6 @@
   margin: 4px 0;
 }
 
-/* ── Cart item rows ───────────────────────────────────────────────── */
 .cart-item-row {
   display: flex;
   align-items: center;
@@ -623,7 +601,6 @@
   background: #fdecea;
 }
 
-/* ── Cart drawer footer ───────────────────────────────────────────── */
 .cart-drawer-footer {
   flex-shrink: 0;
   padding: 16px 18px;
@@ -662,7 +639,6 @@
   line-height: 48px;
 }
 
-/* ── Order confirmation modal ─────────────────────────────────────── */
 .order-confirm-modal {
   border-radius: 16px !important;
   max-width: 440px;
