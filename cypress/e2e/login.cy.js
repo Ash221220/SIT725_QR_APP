@@ -1,15 +1,26 @@
 /**
- * Login Page — Frontend E2E Tests
+ * Login Page E2E Tests
+ * File: cypress/e2e/login.cy.js
  *
- * Covers: 
+ * Covers:
  *   1. frontend/pages/login.html
  *   2. frontend/js/auth.js
  *
- * Prerequisites (before running):
+ * Test groups:
+ *   1a. Page structure
+ *   1b. Form validation — required fields
+ *   1c. Form validation — email format
+ *   1d. Form validation — password field
+ *   1e. Input interaction
+ *   1f. API responses — stubbed
+ *   1g. Successful login — redirects
+ *   1h. Live API tests
+ *
+ * Prerequisites:
  *   1. cd backend && npm start
  *   2. cd backend && npm run seed:admin   (creates admin@system.com / admin123)
  *
- * Run:  npm run test:e2e
+ * Run: npm run test:e2e
  */
 
 const LOGIN_URL = '/pages/login.html';

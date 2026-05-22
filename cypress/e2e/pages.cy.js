@@ -1,13 +1,28 @@
 /**
  * General Page Load Tests
+ * File: cypress/e2e/pages.cy.js
  *
- * Checks that all frontend pages served by the backend are reachable and do
- * not return errors. Pages that are only placeholders (index.html, menu.html)
- * are noted as such — those tests will surface as needing implementation.
+ * Covers:
+ *   1. All frontend pages served by the Express backend
+ *   2. Static JS assets
  *
- * Prerequisites: cd backend && npm start
+ * Test groups:
+ *   - Root route (GET /)
+ *   - Login page
+ *   - Index / landing page
+ *   - Menu page
+ *   - Admin dashboard
+ *   - Owner dashboard
+ *   - Static assets
  *
- * Run:  npm run test:e2e
+ * Notes:
+ *   Pages that are placeholder stubs will surface failing tests intentionally —
+ *   these flag unimplemented pages for the development team.
+ *
+ * Prerequisites:
+ *   1. cd backend && npm start
+ *
+ * Run: npm run test:e2e
  */
 
 // ─── Root route ───────────────────────────────────────────────────────────────
