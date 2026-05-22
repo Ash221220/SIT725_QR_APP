@@ -32,8 +32,25 @@ const mockMenuResponse = {
   ],
 };
 
+function stubSessionStart() {
+  cy.intercept('POST', '/api/sessions/start', {
+    statusCode: 201,
+    body: {
+      success: true,
+      created: true,
+      session: {
+        _id: 'sess1',
+        restaurantId: RESTAURANT_ID,
+        tableNumber: 1,
+        status: 'active',
+      },
+    },
+  });
+}
+
 describe('Guest menu — QR route /menu/:restaurantId', () => {
   beforeEach(() => {
+    stubSessionStart();
     cy.intercept('GET', `**/api/menu/public/${RESTAURANT_ID}`, {
       statusCode: 200,
       body: mockMenuResponse,
@@ -49,11 +66,13 @@ describe('Guest menu — QR route /menu/:restaurantId', () => {
     cy.wait('@getPublicMenu');
 
     cy.get('#tableLabel').should('contain', 'Table 2').and('not.have.class', 'hide');
-    cy.get('#menuStatus').should('have.class', 'hide');
+    // Frontend hides loading via style.display = "none", not the "hide" class
+    cy.get('#menuStatus').should('not.be.visible');
     cy.contains('Margherita Pizza');
     cy.contains('$16.50');
     cy.contains('Iced Latte');
-    cy.contains('.dietary-badge.veg', 'Veg');
+    // Guest menu uses icon dots (menu.js), not owner-dashboard text badges
+    cy.get('.dietary-dot.dot-veg').should('have.attr', 'title', 'Vegetarian');
     cy.contains('Beverages');
   });
 
@@ -72,21 +91,28 @@ describe('Guest menu — QR route /menu/:restaurantId', () => {
     cy.intercept('GET', `**/api/menu/public/${RESTAURANT_ID}`, {
       statusCode: 404,
       body: { success: false, message: 'Restaurant not found' },
-    });
+    }).as('getPublicMenu');
 
     cy.visit(`/menu/${RESTAURANT_ID}?table=1`);
+    cy.wait('@getPublicMenu');
     cy.get('#menuError').should('not.have.class', 'hide');
     cy.contains('Restaurant not found');
   });
 
   it('shows message when menu is empty', () => {
+    stubSessionStart();
+    // Must add .as('getPublicMenu') — Cypress gives the most recently registered
+    // intercept priority, so without the alias this intercept captures the request
+    // and the beforeEach alias never resolves, causing cy.wait('@getPublicMenu') to time out.
     cy.intercept('GET', `**/api/menu/public/${RESTAURANT_ID}`, {
       statusCode: 200,
       body: { success: true, menu: [] },
-    });
+    }).as('getPublicMenu');
 
     cy.visit(`/menu/${RESTAURANT_ID}?table=1`);
-    cy.contains('No menu items are available');
+    cy.wait('@getPublicMenu');
+    cy.contains('No items available right now');
+    cy.contains('Please check back later');
   });
 });
 

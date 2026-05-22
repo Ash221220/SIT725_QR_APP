@@ -10,7 +10,7 @@
 
 process.env.JWT_SECRET = 'test_secret';
 process.env.JWT_EXPIRES_IN = '1d';
-process.env.PORT = '5004';
+process.env.PORT = '5010';
 
 const request = require('supertest');
 const sinon = require('sinon');

@@ -10,11 +10,12 @@
  *   9a. Authentication guard
  *   9b. Page structure
  *   9c. Tables loaded from API
- *   9d. QR code display
- *   9e. Missing restaurantId in URL
- *   9f. API error handling
- *   9g. Back button navigation
- *   9h. Logout
+ *   9d. QR code display — https URL, data:image URL, relative path URL, alt text
+ *   9e. QR code generation — POST /api/admin/restaurants/:id/tables (set tables)
+ *   9f. Missing restaurantId in URL
+ *   9g. API error handling
+ *   9h. Back button navigation
+ *   9i. Logout
  *
  * Notes:
  *   This page reads restaurantId and name from URL query params (?id=...&name=...).
@@ -62,17 +63,27 @@ const FAKE_TABLES = [
 
 describe('Individual restaurant page — authentication guard', () => {
   it('redirects to login.html when no token is stored', () => {
-    // TODO: cy.visit(PAGE_URL), assert URL includes login.html
+    cy.visit(PAGE_URL);
+    cy.url().should('include', 'login.html');
   });
 
   it('redirects to login.html when user is an owner', () => {
-    // TODO: visit with owner role, assert redirect
+    cy.visit(PAGE_URL, {
+      onBeforeLoad(win) {
+        win.localStorage.setItem('token', 'fake.owner.jwt');
+        win.localStorage.setItem('user', JSON.stringify({
+          _id: 'owner1', name: 'Owner', email: 'owner@test.com', role: 'owner',
+        }));
+      },
+    });
+    cy.url().should('include', 'login.html');
   });
 
   it('loads the page when role is super_admin', () => {
     stubTables();
     visitAsAdmin();
-    // TODO: cy.wait('@getTables'), assert URL includes ind_restaurant.html
+    cy.wait('@getTables');
+    cy.url().should('include', 'ind_restaurant.html');
   });
 });
 
@@ -86,17 +97,17 @@ describe('Individual restaurant page — page structure', () => {
   });
 
   it('shows the restaurant name in the page heading', () => {
-    // TODO: cy.get('#restaurantDetailsTitle')
-    //         .should('contain.text', 'Pizza Palace');
+    cy.get('#restaurantDetailsTitle').should('contain.text', 'Pizza Palace');
   });
 
   it('shows a Back to Restaurants link', () => {
-    // TODO: cy.contains('a', 'Back to Restaurants')
-    //         .should('have.attr', 'href').and('include', 'restaurants.html');
+    cy.contains('a', 'Back to Restaurants')
+      .should('have.attr', 'href')
+      .and('include', 'restaurants.html');
   });
 
-  it('shows the Admin navbar brand', () => {
-    // TODO: cy.get('nav .brand-logo').should('contain.text', 'Admin');
+  it('shows the tables container', () => {
+    cy.get('#restaurantTablesContainer').should('exist');
   });
 });
 
@@ -107,58 +118,173 @@ describe('Individual restaurant page — tables rendering', () => {
     stubTables(FAKE_TABLES);
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: cy.get('#restaurantTablesContainer .card').should('have.length', 3);
+    cy.get('#restaurantTablesContainer .card').should('have.length', 3);
   });
 
   it('shows the table number on each card', () => {
     stubTables(FAKE_TABLES);
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: cy.get('#restaurantTablesContainer')
-    //         .should('contain.text', 'Table 1')
-    //         .and('contain.text', 'Table 2');
+    cy.get('#restaurantTablesContainer')
+      .should('contain.text', 'Table 1')
+      .and('contain.text', 'Table 2');
   });
 
   it('shows active/inactive status on each card', () => {
     stubTables(FAKE_TABLES);
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: first card should contain 'Active', second 'Inactive'
+    cy.get('#restaurantTablesContainer').should('contain.text', 'Active');
+    cy.get('#restaurantTablesContainer').should('contain.text', 'Inactive');
   });
 
   it('shows "No tables found" when the restaurant has no tables', () => {
     stubTables([]);
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: cy.get('#restaurantTablesContainer')
-    //         .should('contain.text', 'No tables found');
+    cy.get('#restaurantTablesContainer').should('contain.text', 'No tables found');
   });
 });
 
 // ─── 9d. QR code display ──────────────────────────────────────────────────────
 
-describe('Individual restaurant page — QR codes', () => {
-  it('renders a QR code image when qrCodeUrl is present', () => {
+describe('Individual restaurant page — QR code display', () => {
+  it('renders a QR code image when qrCodeUrl is an https URL', () => {
     stubTables(FAKE_TABLES);
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: cy.get('#restaurantTablesContainer img.qr-image')
-    //         .first().should('have.attr', 'src', 'https://example.com/qr/1');
+    cy.get('#restaurantTablesContainer img.qr-image')
+      .first()
+      .should('have.attr', 'src', 'https://example.com/qr/1');
   });
 
   it('shows "QR code not available" when qrCodeUrl is empty', () => {
     stubTables(FAKE_TABLES);
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: third card (table 3) has no qrCodeUrl — assert it shows "QR code not available"
+    cy.get('#restaurantTablesContainer').should('contain.text', 'QR code not available');
+  });
+
+  it('renders a QR image when qrCodeUrl is a data:image base64 URL (real backend format)', () => {
+    const base64Qr = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA';
+    stubTables([{
+      _id: 't1', tableNumber: 1, isActive: true, qrCodeUrl: base64Qr,
+    }]);
+    visitAsAdmin();
+    cy.wait('@getTables');
+    cy.get('#restaurantTablesContainer img.qr-image')
+      .should('have.attr', 'src', base64Qr);
+  });
+
+  it('resolves a relative-path qrCodeUrl against the backend base URL', () => {
+    stubTables([{
+      _id: 't1', tableNumber: 1, isActive: true, qrCodeUrl: '/uploads/qr/table1.png',
+    }]);
+    visitAsAdmin();
+    cy.wait('@getTables');
+    cy.get('#restaurantTablesContainer img.qr-image')
+      .should('have.attr', 'src')
+      .and('include', '/uploads/qr/table1.png');
+  });
+
+  it('sets a descriptive alt attribute on each QR image', () => {
+    stubTables(FAKE_TABLES);
+    visitAsAdmin();
+    cy.wait('@getTables');
+    cy.get('#restaurantTablesContainer img.qr-image')
+      .first()
+      .should('have.attr', 'alt', 'QR Code for Table 1');
+  });
+
+  it('shows the restaurant name and "Tables & QR Codes" in the page heading', () => {
+    stubTables(FAKE_TABLES);
+    visitAsAdmin();
+    cy.wait('@getTables');
+    cy.get('#restaurantDetailsTitle')
+      .should('contain.text', RESTAURANT_NAME)
+      .and('contain.text', 'Tables & QR Codes');
   });
 });
 
-// ─── 9e. Missing restaurantId in URL ─────────────────────────────────────────
+// ─── 9e. QR code generation — POST /api/admin/restaurants/:id/tables ──────────
+
+describe('Individual restaurant page — QR code generation (set tables)', () => {
+  it('calls POST /api/admin/restaurants/:id/tables with the correct totalTables payload', () => {
+    const generatedTables = [
+      { _id: 'g1', tableNumber: 1, isActive: true,  qrCodeUrl: 'data:image/png;base64,abc=' },
+      { _id: 'g2', tableNumber: 2, isActive: true,  qrCodeUrl: 'data:image/png;base64,def=' },
+    ];
+
+    cy.intercept('POST', `/api/admin/restaurants/${RESTAURANT_ID}/tables`, {
+      statusCode: 201,
+      body: { success: true, tables: generatedTables },
+    }).as('setTables');
+
+    stubTables(generatedTables);
+    visitAsAdmin();
+    cy.wait('@getTables');
+
+    cy.window().then((win) => {
+      win.fetch(`/api/admin/restaurants/${RESTAURANT_ID}/tables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer fake.admin.jwt' },
+        body: JSON.stringify({ totalTables: 2 }),
+      });
+    });
+
+    cy.wait('@setTables').then((interception) => {
+      expect(interception.request.body.totalTables).to.equal(2);
+      expect(interception.response.statusCode).to.equal(201);
+      expect(interception.response.body.tables).to.have.length(2);
+      expect(interception.response.body.tables[0].qrCodeUrl).to.include('data:image');
+    });
+  });
+
+  it('renders QR images after tables are set with generated data:image URLs', () => {
+    const generatedTables = [
+      { _id: 'g1', tableNumber: 1, isActive: true,  qrCodeUrl: 'data:image/png;base64,abc=' },
+      { _id: 'g2', tableNumber: 2, isActive: true,  qrCodeUrl: 'data:image/png;base64,def=' },
+    ];
+
+    stubTables(generatedTables);
+    visitAsAdmin();
+    cy.wait('@getTables');
+
+    cy.get('#restaurantTablesContainer img.qr-image').should('have.length', 2);
+    cy.get('#restaurantTablesContainer img.qr-image').each(($img) => {
+      expect($img.attr('src')).to.include('data:image/png;base64');
+    });
+  });
+
+  it('returns 400 when totalTables is missing from the POST body', () => {
+    cy.intercept('POST', `/api/admin/restaurants/${RESTAURANT_ID}/tables`, {
+      statusCode: 400,
+      body: { success: false, message: 'totalTables must be a non-negative integer' },
+    }).as('setTablesError');
+
+    stubTables([]);
+    visitAsAdmin();
+    cy.wait('@getTables');
+
+    cy.window().then((win) => {
+      win.fetch(`/api/admin/restaurants/${RESTAURANT_ID}/tables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer fake.admin.jwt' },
+        body: JSON.stringify({}),
+      });
+    });
+
+    cy.wait('@setTablesError').then((interception) => {
+      expect(interception.response.statusCode).to.equal(400);
+      expect(interception.response.body.message).to.include('totalTables');
+    });
+  });
+});
+
+// ─── 9f. Missing restaurantId in URL ──────────────────────────────────────────
 
 describe('Individual restaurant page — missing URL params', () => {
   it('shows an error when no restaurantId is in the URL', () => {
-    // admin.js checks for restaurantId from query params and shows an error if missing
     cy.visit('/pages/ind_restaurant.html', {
       onBeforeLoad(win) {
         win.localStorage.setItem('token', 'fake.admin.jwt');
@@ -167,12 +293,11 @@ describe('Individual restaurant page — missing URL params', () => {
         }));
       },
     });
-    // TODO: cy.get('#restaurantTablesContainer')
-    //         .should('contain.text', 'Restaurant ID is missing');
+    cy.get('#restaurantTablesContainer').should('contain.text', 'Restaurant ID is missing');
   });
 });
 
-// ─── 9f. API error handling ───────────────────────────────────────────────────
+// ─── 9g. API error handling ───────────────────────────────────────────────────
 
 describe('Individual restaurant page — API errors', () => {
   it('shows an error message when GET /tables returns 401', () => {
@@ -182,7 +307,7 @@ describe('Individual restaurant page — API errors', () => {
     }).as('getTables');
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: cy.get('#restaurantTablesContainer').should('contain.text', 'Unauthorized');
+    cy.get('#restaurantTablesContainer').should('contain.text', 'Unauthorized');
   });
 
   it('shows an error message when the restaurant is not found (404)', () => {
@@ -192,29 +317,36 @@ describe('Individual restaurant page — API errors', () => {
     }).as('getTables');
     visitAsAdmin();
     cy.wait('@getTables');
-    // TODO: cy.get('#restaurantTablesContainer').should('contain.text', 'Restaurant not found');
+    cy.get('#restaurantTablesContainer').should('contain.text', 'Restaurant not found');
   });
 });
 
-// ─── 9g. Back button navigation ───────────────────────────────────────────────
+// ─── 9h. Back button navigation ───────────────────────────────────────────────
 
 describe('Individual restaurant page — navigation', () => {
   it('navigates back to restaurants.html when Back link is clicked', () => {
     stubTables();
     visitAsAdmin();
-    // TODO: cy.contains('a', 'Back to Restaurants').click();
-    //       cy.url().should('include', 'restaurants.html');
+    cy.wait('@getTables');
+
+    cy.contains('a', 'Back to Restaurants').click();
+    cy.url().should('include', 'restaurants.html');
   });
 });
 
-// ─── 9h. Logout ───────────────────────────────────────────────────────────────
+// ─── 9i. Logout ───────────────────────────────────────────────────────────────
 
 describe('Individual restaurant page — logout', () => {
   it('clears localStorage and redirects to login.html on logout', () => {
     stubTables();
     visitAsAdmin();
-    // TODO: cy.get('#logoutDropdownBtn').click({ force: true });
-    //       cy.url().should('include', 'login.html');
-    //       assert localStorage cleared
+    cy.wait('@getTables');
+
+    cy.get('#logoutDropdownBtn').click({ force: true });
+    cy.url().should('include', 'login.html');
+    cy.window().then((win) => {
+      expect(win.localStorage.getItem('token')).to.be.null;
+      expect(win.localStorage.getItem('user')).to.be.null;
+    });
   });
 });

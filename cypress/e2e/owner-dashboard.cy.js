@@ -35,24 +35,61 @@ const DASHBOARD_URL = '/pages/owner-dashboard.html';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function setOwnerSession(overrides = {}) {
-  cy.window().then((win) => {
-    win.localStorage.setItem('token', 'fake.owner.jwt');
-    win.localStorage.setItem('user', JSON.stringify({
-      _id: 'owner1',
-      name: 'Test Owner',
-      email: 'owner@test.com',
-      role: 'owner',
-      ...overrides,
-    }));
+function stubAnalytics() {
+  cy.intercept('GET', '/api/analytics/my/summary*', {
+    statusCode: 200,
+    body: { success: true, summary: { totalOrders: 0, totalRevenue: 0, topItem: null, busiestTable: null } },
+  });
+  cy.intercept('GET', '/api/analytics/my/peak-hours*', {
+    statusCode: 200,
+    body: { success: true, peakHours: { peakHoursByDay: {} } },
+  });
+  cy.intercept('GET', '/api/analytics/my/item-forecast*', {
+    statusCode: 200,
+    body: { success: true, forecast: { forecastedItems: [] } },
   });
 }
 
 function stubMenu(items = []) {
+  stubAnalytics();
   cy.intercept('GET', '/api/menu/my', {
     statusCode: 200,
-    body: { menu: items },
+    body: { success: true, menu: items },
   }).as('getMenu');
+}
+
+/** #ownerMenuTable is the <tbody> — rows are #ownerMenuTable tr, not tbody tr inside it */
+function menuTableRows() {
+  return cy.get('#ownerMenuTable tr');
+}
+
+function visitAsOwner(name = 'Test Owner', email = 'owner@test.com') {
+  cy.visit(DASHBOARD_URL, {
+    onBeforeLoad(win) {
+      win.localStorage.setItem('token', 'fake.owner.jwt');
+      win.localStorage.setItem('user', JSON.stringify({
+        _id: 'owner1', name, email, role: 'owner',
+      }));
+    },
+  });
+}
+
+function fillMenuItemForm({
+  name = 'New Dish',
+  price = '20',
+  category = 'Mains',
+  dietary = 'veg',
+  description = 'A tasty test dish',
+} = {}) {
+  cy.get('#itemName').clear().type(name);
+  cy.get('#itemCategory').select(category, { force: true });
+  cy.get('#itemDietaryType').select(dietary, { force: true });
+  cy.get('#itemDescription').clear().type(description, { force: true });
+  cy.get('#itemPrice').clear().type(price);
+}
+
+function submitMenuItemForm() {
+  cy.get('button[form="menuItemForm"]').click({ force: true });
 }
 
 const FAKE_ITEMS = [
@@ -70,15 +107,27 @@ const FAKE_ITEMS = [
 
 describe('Owner dashboard — authentication guard', () => {
   it('redirects to login.html when no token is stored', () => {
-    // TODO: implement
+    cy.visit(DASHBOARD_URL);
+    cy.url().should('include', 'login.html');
   });
 
   it('redirects to login.html when user is an admin (not owner)', () => {
-    // TODO: implement
+    cy.visit(DASHBOARD_URL, {
+      onBeforeLoad(win) {
+        win.localStorage.setItem('token', 'fake.admin.jwt');
+        win.localStorage.setItem('user', JSON.stringify({
+          _id: 'admin1', name: 'Admin', email: 'admin@test.com', role: 'super_admin',
+        }));
+      },
+    });
+    cy.url().should('include', 'login.html');
   });
 
   it('loads the dashboard when role is owner', () => {
-    // TODO: stub menu, visit with owner session, assert URL includes owner-dashboard.html
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.url().should('include', 'owner-dashboard.html');
   });
 });
 
@@ -87,39 +136,30 @@ describe('Owner dashboard — authentication guard', () => {
 describe('Owner dashboard — page structure', () => {
   beforeEach(() => {
     stubMenu();
-    cy.visit(DASHBOARD_URL, {
-      onBeforeLoad(win) {
-        win.localStorage.setItem('token', 'fake.owner.jwt');
-        win.localStorage.setItem('user', JSON.stringify({
-          _id: 'owner1', name: 'Test Owner', email: 'owner@test.com', role: 'owner',
-        }));
-      },
-    });
+    visitAsOwner();
     cy.wait('@getMenu');
   });
 
   it('has the correct page title', () => {
-    // TODO: cy.title().should('include', 'Owner Dashboard');
-  });
-
-  it('shows the navbar with Owner brand logo', () => {
-    // TODO: cy.get('nav .brand-logo').should('contain.text', 'Owner');
+    cy.title().should('include', 'Owner Dashboard');
   });
 
   it('shows the "Owner Dashboard" heading', () => {
-    // TODO: cy.get('h4').should('contain.text', 'Owner Dashboard');
+    cy.get('h4').should('contain.text', 'Owner Dashboard');
   });
 
   it('shows the menu table with correct column headers', () => {
-    // TODO: check th cells include Item, Category, Type, Price, Availability, Actions
+    cy.get('.owner-menu-table thead th').should('contain.text', 'Item');
+    cy.get('.owner-menu-table thead th').should('contain.text', 'Category');
+    cy.get('.owner-menu-table thead th').should('contain.text', 'Price');
   });
 
   it('shows the Add Item button', () => {
-    // TODO: cy.get('#addItemBtn').should('be.visible');
+    cy.get('#addItemBtn').should('be.visible');
   });
 
   it('shows the search input', () => {
-    // TODO: cy.get('#ownerMenuSearch').should('be.visible');
+    cy.get('#ownerMenuSearch').should('be.visible');
   });
 });
 
@@ -127,11 +167,24 @@ describe('Owner dashboard — page structure', () => {
 
 describe('Owner dashboard — welcome message', () => {
   it('displays the owner name in the welcome message', () => {
-    // TODO: stub, visit with name 'Ferdinand', assert #ownerWelcome contains 'Ferdinand'
+    stubMenu();
+    visitAsOwner('Ferdinand');
+    cy.wait('@getMenu');
+    cy.get('#ownerWelcome').should('contain.text', 'Ferdinand');
   });
 
   it('falls back to email if name is missing', () => {
-    // TODO: visit with name: '', assert #ownerWelcome contains email
+    stubMenu();
+    cy.visit(DASHBOARD_URL, {
+      onBeforeLoad(win) {
+        win.localStorage.setItem('token', 'fake.owner.jwt');
+        win.localStorage.setItem('user', JSON.stringify({
+          _id: 'owner1', name: '', email: 'myemail@test.com', role: 'owner',
+        }));
+      },
+    });
+    cy.wait('@getMenu');
+    cy.get('#ownerWelcome').should('contain.text', 'myemail@test.com');
   });
 });
 
@@ -139,19 +192,37 @@ describe('Owner dashboard — welcome message', () => {
 
 describe('Owner dashboard — menu table', () => {
   it('renders a row for each menu item', () => {
-    // TODO: stub with FAKE_ITEMS, visit, wait, assert #ownerMenuTable tr length === 2
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.get('#ownerMenuTable tr').should('have.length', 2);
   });
 
   it('shows item name, price and availability in the row', () => {
-    // TODO: assert table contains 'Burger', '$12.50', 'Available'
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.get('#ownerMenuTable').should('contain.text', 'Burger');
+    cy.get('#ownerMenuTable').should('contain.text', '12.50');
+    cy.get('#ownerMenuTable').should('contain.text', 'Available');
   });
 
   it('shows "No menu items found" when menu is empty', () => {
-    // TODO: stub with [], assert table contains 'No menu items found'
+    stubMenu([]);
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.get('#ownerMenuTable').should('contain.text', 'No menu items found');
   });
 
   it('shows an error message when menu API fails', () => {
-    // TODO: intercept with 401, assert table contains error message
+    stubAnalytics();
+    cy.intercept('GET', '/api/menu/my', {
+      statusCode: 401,
+      body: { message: 'Unauthorized' },
+    }).as('getMenuFail');
+    visitAsOwner();
+    cy.wait('@getMenuFail');
+    cy.get('#ownerMenuTable').should('contain.text', 'Unauthorized');
   });
 });
 
@@ -159,48 +230,130 @@ describe('Owner dashboard — menu table', () => {
 
 describe('Owner dashboard — stats cards', () => {
   it('shows the correct total menu item count', () => {
-    // TODO: stub with FAKE_ITEMS (length 2), assert #menuCount === '2'
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.get('#menuCount').should('have.text', '2');
   });
 
   it('shows the correct available item count', () => {
-    // TODO: 1 of 2 FAKE_ITEMS is available, assert #availableCount === '1'
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.get('#availableCount').should('have.text', '1');
   });
 
   it('shows the correct unavailable item count', () => {
-    // TODO: 1 of 2 FAKE_ITEMS is unavailable, assert #unavailableCount === '1'
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.get('#unavailableCount').should('have.text', '1');
   });
 });
 
 // ─── 4f. Add menu item ────────────────────────────────────────────────────────
 
 describe('Owner dashboard — add menu item', () => {
+  beforeEach(() => {
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+  });
+
   it('opens the Add Item modal when Add Item button is clicked', () => {
-    // TODO: stub, visit, click #addItemBtn, assert #menuItemModal is visible
+    cy.get('#addItemBtn').click({ force: true });
+    cy.get('#menuItemModal').should('be.visible');
   });
 
   it('modal heading says "Add Menu Item"', () => {
-    // TODO: assert #menuModalHeading text
+    cy.get('#addItemBtn').click({ force: true });
+    cy.get('#menuModalHeading').should('contain.text', 'Add Menu Item');
   });
 
   it('calls POST /api/menu/my when form is submitted with valid data', () => {
-    // TODO: intercept POST, fill form, submit, cy.wait('@createItem')
+    cy.intercept('POST', '/api/menu/my', {
+      statusCode: 201,
+      body: {
+        success: true,
+        item: { _id: 'newitem', name: 'New Dish', price: 20, category: 'Mains', isAvailable: true },
+      },
+    }).as('createItem');
+    stubMenu([...FAKE_ITEMS, { _id: 'newitem', name: 'New Dish', price: 20, isAvailable: true, category: 'Mains' }]);
+
+    cy.get('#addItemBtn').click({ force: true });
+    fillMenuItemForm({ name: 'New Dish', price: '20' });
+    submitMenuItemForm();
+    cy.wait('@createItem');
   });
 
   it('does not submit when required fields are missing', () => {
-    // TODO: open modal, click Save without filling, assert API not called
+    cy.intercept('POST', '/api/menu/my').as('createItem');
+
+    cy.get('#addItemBtn').click({ force: true });
+    submitMenuItemForm();
+    cy.get('@createItem.all').should('have.length', 0);
+  });
+
+  it('uploads image via POST /api/menu/my/images when file is selected', () => {
+    cy.intercept('POST', '/api/menu/my/images', {
+      statusCode: 201,
+      body: {
+        success: true,
+        imageFileId: 'img123',
+        imageUrl: '/api/menu/images/img123',
+      },
+    }).as('uploadImage');
+    cy.intercept('POST', '/api/menu/my', {
+      statusCode: 201,
+      body: {
+        success: true,
+        item: {
+          _id: 'newimg', name: 'Photo Dish', price: 22, category: 'Mains',
+          isAvailable: true, image: '/api/menu/images/img123',
+        },
+      },
+    }).as('createItem');
+    stubMenu(FAKE_ITEMS);
+
+    cy.get('#addItemBtn').click({ force: true });
+    fillMenuItemForm({ name: 'Photo Dish', price: '22' });
+    cy.get('#itemImageFile').selectFile({
+      contents: Cypress.Buffer.from('fake-image'),
+      fileName: 'dish.png',
+      mimeType: 'image/png',
+    }, { force: true });
+    submitMenuItemForm();
+    cy.wait('@uploadImage');
+    cy.wait('@createItem');
   });
 });
 
 // ─── 4g. Edit menu item ───────────────────────────────────────────────────────
 
 describe('Owner dashboard — edit menu item', () => {
+  beforeEach(() => {
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+  });
+
   it('opens the Edit modal with pre-filled values when Edit is clicked', () => {
-    // TODO: stub with FAKE_ITEMS, click Edit on first row,
-    //       assert #menuModalHeading === 'Edit Menu Item', #itemName has value 'Burger'
+    cy.get('#ownerMenuTable tr').first().contains('button', 'Edit').click({ force: true });
+    cy.get('#menuModalHeading').should('contain.text', 'Edit Menu Item');
+    cy.get('#itemName').should('have.value', 'Burger');
   });
 
   it('calls PUT /api/menu/my/:id when the edit form is submitted', () => {
-    // TODO: intercept PUT, click Edit, change name, submit, cy.wait('@updateItem')
+    cy.intercept('PUT', '/api/menu/my/item1', {
+      statusCode: 200,
+      body: { success: true, item: { ...FAKE_ITEMS[0], name: 'Updated Burger' } },
+    }).as('updateItem');
+    stubMenu(FAKE_ITEMS);
+
+    cy.get('#ownerMenuTable tr').first().contains('button', 'Edit').click({ force: true });
+    fillMenuItemForm({ name: 'Updated Burger', price: '12.50', description: 'Tasty burger' });
+    submitMenuItemForm();
+    cy.wait('@updateItem');
   });
 });
 
@@ -208,8 +361,18 @@ describe('Owner dashboard — edit menu item', () => {
 
 describe('Owner dashboard — toggle availability', () => {
   it('calls PATCH /api/menu/my/:id/availability when toggle button is clicked', () => {
-    // TODO: intercept PATCH, stub menu, click "Mark Unavailable" on item1,
-    //       cy.wait('@toggleAvailability'), assert body.isAvailable === false
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+
+    cy.intercept('PATCH', '/api/menu/my/item1/availability', {
+      statusCode: 200,
+      body: { success: true, item: { ...FAKE_ITEMS[0], isAvailable: false } },
+    }).as('toggleAvailability');
+    stubMenu(FAKE_ITEMS);
+
+    cy.get('#ownerMenuTable tr').first().contains('button', 'Mark Unavailable').click({ force: true });
+    cy.wait('@toggleAvailability').its('request.body.isAvailable').should('equal', false);
   });
 });
 
@@ -217,26 +380,59 @@ describe('Owner dashboard — toggle availability', () => {
 
 describe('Owner dashboard — delete menu item', () => {
   it('calls DELETE /api/menu/my/:id after confirming the dialog', () => {
-    // TODO: cy.on('window:confirm', () => true), intercept DELETE,
-    //       click Delete, cy.wait('@deleteItem')
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+
+    cy.intercept('DELETE', '/api/menu/my/item1', {
+      statusCode: 200,
+      body: { success: true, message: 'Menu item deleted' },
+    }).as('deleteItem');
+    stubMenu([FAKE_ITEMS[1]]);
+
+    cy.on('window:confirm', () => true);
+    cy.get('#ownerMenuTable tr').first().contains('button', 'Delete').click({ force: true });
+    cy.wait('@deleteItem');
   });
 
   it('does not call DELETE when the confirm dialog is cancelled', () => {
-    // TODO: cy.on('window:confirm', () => false), click Delete,
-    //       assert DELETE request was NOT made
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+
+    cy.intercept('DELETE', '/api/menu/my/item1').as('deleteItem');
+    cy.on('window:confirm', () => false);
+
+    cy.get('#ownerMenuTable tr').first().contains('button', 'Delete').click({ force: true });
+    cy.get('@deleteItem.all').should('have.length', 0);
   });
 });
 
 // ─── 4j. Search / filter ─────────────────────────────────────────────────────
 
 describe('Owner dashboard — search', () => {
+  beforeEach(() => {
+    stubMenu(FAKE_ITEMS);
+    visitAsOwner();
+    cy.wait('@getMenu');
+  });
+
   it('filters rows when typing in the search box', () => {
-    // TODO: stub with FAKE_ITEMS, type 'Burger' in #ownerMenuSearch,
-    //       assert only 1 row visible, containing 'Burger'
+    cy.get('#ownerMenuSearch').clear().type('Burger');
+    cy.get('#ownerMenuTable tr').should('have.length', 1);
+    cy.get('#ownerMenuTable').should('contain.text', 'Burger');
   });
 
   it('shows "No menu items found" when search matches nothing', () => {
-    // TODO: type 'xyzzy', assert table shows no-results message
+    cy.get('#ownerMenuSearch').clear().type('xyzzy_nonexistent');
+    cy.get('#ownerMenuTable').should('contain.text', 'No menu items found');
+  });
+
+  it('clears the filter when search box is emptied', () => {
+    cy.get('#ownerMenuSearch').clear().type('Burger');
+    cy.get('#ownerMenuTable tr').should('have.length', 1);
+    cy.get('#ownerMenuSearch').clear();
+    cy.get('#ownerMenuTable tr').should('have.length', 2);
   });
 });
 
@@ -244,16 +440,61 @@ describe('Owner dashboard — search', () => {
 
 describe('Owner dashboard — API errors', () => {
   it('shows error message in table when GET /menu/my returns 401', () => {
-    // TODO: intercept with 401 { message: 'Unauthorized' },
-    //       visit, assert table contains 'Unauthorized'
+    stubAnalytics();
+    cy.intercept('GET', '/api/menu/my', {
+      statusCode: 401,
+      body: { message: 'Unauthorized' },
+    }).as('getMenu');
+    visitAsOwner();
+    cy.wait('@getMenu');
+    cy.get('#ownerMenuTable').should('contain.text', 'Unauthorized');
+  });
+
+  it('shows error message when GET /menu/my returns 500', () => {
+    stubAnalytics();
+    cy.intercept('GET', '/api/menu/my', {
+      statusCode: 500,
+      body: { message: 'Internal Server Error' },
+    }).as('getMenuError');
+    visitAsOwner();
+    cy.wait('@getMenuError');
+    cy.get('#ownerMenuTable').should('not.be.empty');
   });
 });
 
-// ─── 4l. Logout ───────────────────────────────────────────────────────────────
+// ─── 4l. Navigation ───────────────────────────────────────────────────────────
+
+describe('Owner dashboard — navigation', () => {
+  beforeEach(() => {
+    stubMenu();
+    visitAsOwner();
+    cy.wait('@getMenu');
+  });
+
+  it('navigates to analytics.html via View Analytics button', () => {
+    cy.contains('a', 'View Analytics').click();
+    cy.url().should('include', 'analytics.html');
+  });
+
+  it('navigates to owner-profile.html via Profile nav link', () => {
+    cy.contains('nav a', 'Profile').click();
+    cy.url().should('include', 'owner-profile.html');
+  });
+});
+
+// ─── 4m. Logout ───────────────────────────────────────────────────────────────
 
 describe('Owner dashboard — logout', () => {
   it('clears localStorage and redirects to login.html on logout', () => {
-    // TODO: stub, visit, click #logoutBtn, assert URL includes login.html,
-    //       assert localStorage token and user are null
+    stubMenu();
+    visitAsOwner();
+    cy.wait('@getMenu');
+
+    cy.get('#logoutBtn').click();
+    cy.url().should('include', 'login.html');
+    cy.window().then((win) => {
+      expect(win.localStorage.getItem('token')).to.be.null;
+      expect(win.localStorage.getItem('user')).to.be.null;
+    });
   });
 });

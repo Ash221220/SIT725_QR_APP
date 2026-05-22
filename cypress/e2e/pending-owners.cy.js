@@ -57,17 +57,27 @@ const FAKE_PENDING = [
 
 describe('Pending owners page — authentication guard', () => {
   it('redirects to login.html when no token is stored', () => {
-    // TODO: cy.visit(PAGE_URL), assert URL includes login.html
+    cy.visit(PAGE_URL);
+    cy.url().should('include', 'login.html');
   });
 
   it('redirects to login.html when user is an owner', () => {
-    // TODO: visit with owner role, assert redirect
+    cy.visit(PAGE_URL, {
+      onBeforeLoad(win) {
+        win.localStorage.setItem('token', 'fake.owner.jwt');
+        win.localStorage.setItem('user', JSON.stringify({
+          _id: 'owner1', name: 'Owner', email: 'owner@test.com', role: 'owner',
+        }));
+      },
+    });
+    cy.url().should('include', 'login.html');
   });
 
   it('loads the page when role is super_admin', () => {
     stubPendingOwners();
     visitAsAdmin();
-    // TODO: cy.wait('@pendingOwners'), assert URL includes pending_owners.html
+    cy.wait('@pendingOwners');
+    cy.url().should('include', 'pending_owners.html');
   });
 });
 
@@ -81,19 +91,15 @@ describe('Pending owners page — page structure', () => {
   });
 
   it('shows the "Pending Owner Requests" heading', () => {
-    // TODO: cy.get('h4').should('contain.text', 'Pending Owner Requests');
+    cy.get('h4').should('contain.text', 'Pending Owner Requests');
   });
 
-  it('shows table headers: Name, Email, Status, Actions', () => {
-    // TODO: check th cells
+  it('shows the pending owners table', () => {
+    cy.get('#pendingOwnersTable').should('exist');
   });
 
   it('shows the search input', () => {
-    // TODO: cy.get('#pendingOwnerSearch').should('exist');
-  });
-
-  it('shows the navbar with Admin brand', () => {
-    // TODO: cy.get('nav .brand-logo').should('contain.text', 'Admin');
+    cy.get('#pendingOwnerSearch').should('exist');
   });
 });
 
@@ -104,31 +110,32 @@ describe('Pending owners page — table content', () => {
     stubPendingOwners(FAKE_PENDING);
     visitAsAdmin();
     cy.wait('@pendingOwners');
-    // TODO: cy.get('#pendingOwnersTable tr').should('have.length', 2);
+    cy.get('#pendingOwnersTable tr').should('have.length', 2);
   });
 
   it('shows owner name and email in each row', () => {
     stubPendingOwners(FAKE_PENDING);
     visitAsAdmin();
     cy.wait('@pendingOwners');
-    // TODO: assert table contains 'Alice Owner' and 'alice@owner.com'
+    cy.get('#pendingOwnersTable').should('contain.text', 'Alice Owner');
+    cy.get('#pendingOwnersTable').should('contain.text', 'alice@owner.com');
   });
 
   it('shows Approve and Deny buttons on each row', () => {
     stubPendingOwners(FAKE_PENDING);
     visitAsAdmin();
     cy.wait('@pendingOwners');
-    // TODO: cy.get('#pendingOwnersTable tr').first().within(() => {
-    //         cy.contains('button', 'Approve').should('be.visible');
-    //         cy.contains('button', 'Deny').should('be.visible');
-    //       });
+    cy.get('#pendingOwnersTable tr').first().within(() => {
+      cy.contains('button', 'Approve').should('be.visible');
+      cy.contains('button', 'Deny').should('be.visible');
+    });
   });
 
   it('shows "No pending owners found" when list is empty', () => {
     stubPendingOwners([]);
     visitAsAdmin();
     cy.wait('@pendingOwners');
-    // TODO: cy.get('#pendingOwnersTable').should('contain.text', 'No pending owners found');
+    cy.get('#pendingOwnersTable').should('contain.text', 'No pending owners found');
   });
 });
 
@@ -149,8 +156,8 @@ describe('Pending owners page — actions', () => {
     }).as('approveOwner');
     stubPendingOwners([FAKE_PENDING[1]]);
 
-    // TODO: cy.get('#pendingOwnersTable tr').first().contains('button', 'Approve').click();
-    //       cy.wait('@approveOwner');
+    cy.get('#pendingOwnersTable tr').first().contains('button', 'Approve').click({ force: true });
+    cy.wait('@approveOwner');
   });
 
   it('calls PATCH /reject when Deny button is clicked', () => {
@@ -160,9 +167,8 @@ describe('Pending owners page — actions', () => {
     }).as('rejectOwner');
     stubPendingOwners([FAKE_PENDING[1]]);
 
-    // TODO: cy.get('#pendingOwnersTable tr').first()
-    //         .contains('button', 'Deny').click({ force: true });
-    //       cy.wait('@rejectOwner');
+    cy.get('#pendingOwnersTable tr').first().contains('button', 'Deny').click({ force: true });
+    cy.wait('@rejectOwner');
   });
 });
 
@@ -174,9 +180,30 @@ describe('Pending owners page — search', () => {
     visitAsAdmin();
     cy.wait('@pendingOwners');
     cy.get('#pendingOwnersTable tr').should('have.length', 2);
-    // TODO: cy.get('#pendingOwnerSearch').type('Alice');
-    //       cy.get('#pendingOwnersTable tr').should('have.length', 1);
-    //       cy.get('#pendingOwnersTable').should('contain.text', 'Alice Owner');
+
+    cy.get('#pendingOwnerSearch').clear().type('Alice');
+    cy.get('#pendingOwnersTable tr').should('have.length', 1);
+    cy.get('#pendingOwnersTable').should('contain.text', 'Alice Owner');
+  });
+
+  it('shows "No pending owners found" when search matches nothing', () => {
+    stubPendingOwners(FAKE_PENDING);
+    visitAsAdmin();
+    cy.wait('@pendingOwners');
+
+    cy.get('#pendingOwnerSearch').clear().type('xyzzy_nonexistent');
+    cy.get('#pendingOwnersTable').should('contain.text', 'No pending owners found');
+  });
+
+  it('restores all rows when search is cleared', () => {
+    stubPendingOwners(FAKE_PENDING);
+    visitAsAdmin();
+    cy.wait('@pendingOwners');
+
+    cy.get('#pendingOwnerSearch').clear().type('Alice');
+    cy.get('#pendingOwnersTable tr').should('have.length', 1);
+    cy.get('#pendingOwnerSearch').clear();
+    cy.get('#pendingOwnersTable tr').should('have.length', 2);
   });
 });
 
@@ -190,7 +217,17 @@ describe('Pending owners page — API errors', () => {
     }).as('pendingOwners');
     visitAsAdmin();
     cy.wait('@pendingOwners');
-    // TODO: cy.get('#pendingOwnersTable').should('contain.text', 'Unauthorized');
+    cy.get('#pendingOwnersTable').should('contain.text', 'Unauthorized');
+  });
+
+  it('shows an error message when the API returns 500', () => {
+    cy.intercept('GET', '/api/admin/owners/pending', {
+      statusCode: 500,
+      body: { message: 'Internal Server Error' },
+    }).as('pendingOwnersError');
+    visitAsAdmin();
+    cy.wait('@pendingOwnersError');
+    cy.get('#pendingOwnersTable').should('not.be.empty');
   });
 });
 
@@ -200,8 +237,13 @@ describe('Pending owners page — logout', () => {
   it('clears localStorage and redirects to login.html on logout', () => {
     stubPendingOwners();
     visitAsAdmin();
-    // TODO: cy.get('#logoutDropdownBtn').click({ force: true });
-    //       cy.url().should('include', 'login.html');
-    //       assert localStorage cleared
+    cy.wait('@pendingOwners');
+
+    cy.get('#logoutDropdownBtn').click({ force: true });
+    cy.url().should('include', 'login.html');
+    cy.window().then((win) => {
+      expect(win.localStorage.getItem('token')).to.be.null;
+      expect(win.localStorage.getItem('user')).to.be.null;
+    });
   });
 });

@@ -357,13 +357,11 @@ describe('GET /api/menu/:restaurantId — integration (admin only)', () => {
   });
 
   it('returns 400 when restaurantId is not a valid ObjectId', async () => {
-    const adminLoginRes = await request(app)
-      .post('/api/auth/login')
-      .send({ email: 'admin@system.com', password: 'admin123' });
+    const { token: adminToken } = await seedAdmin();
 
     const res = await request(app)
       .get('/api/menu/not-a-valid-id')
-      .set('Authorization', `Bearer ${adminLoginRes.body.token}`);
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).to.equal(400);
   });
@@ -404,5 +402,83 @@ describe('GET /api/menu/public/:restaurantId — integration (no auth)', () => {
     const fakeId = new mongoose.Types.ObjectId();
     const res = await request(app).get(`/api/menu/public/${fakeId}`);
     expect(res.status).to.equal(404);
+  });
+
+  it('returns 404 when restaurant is inactive', async () => {
+    const { ownerToken, restaurantId } = await seedApprovedOwner('inactivepublic');
+
+    await request(app)
+      .put('/api/restaurants/my')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'Inactive Bistro' });
+
+    const Restaurant = require('../../backend/models/Restaurant');
+    await Restaurant.updateOne({ _id: restaurantId }, { isActive: false });
+
+    const res = await request(app).get(`/api/menu/public/${restaurantId}`);
+    expect(res.status).to.equal(404);
+  });
+});
+
+// ─── POST /api/menu/my/images & GET /api/menu/images/:id — integration ───────
+
+describe('Menu image upload — integration', () => {
+  it('uploads an image and returns imageUrl', async () => {
+    const { ownerToken } = await seedApprovedOwner('imgupload');
+
+    const res = await request(app)
+      .post('/api/menu/my/images')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .attach('image', Buffer.from('fake-png-content'), {
+        filename: 'test.png',
+        contentType: 'image/png',
+      });
+
+    expect(res.status).to.equal(201);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.imageFileId).to.exist;
+    expect(res.body.imageUrl).to.include('/api/menu/images/');
+  });
+
+  it('returns 400 when no image file is uploaded', async () => {
+    const { ownerToken } = await seedApprovedOwner('imgmissing');
+
+    const res = await request(app)
+      .post('/api/menu/my/images')
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('Image file is required');
+  });
+
+  it('returns image bytes for a valid uploaded image id', async () => {
+    const { ownerToken } = await seedApprovedOwner('imgget');
+
+    const uploadRes = await request(app)
+      .post('/api/menu/my/images')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .attach('image', Buffer.from('fake-png-content'), {
+        filename: 'menu.png',
+        contentType: 'image/png',
+      });
+
+    const imageId = uploadRes.body.imageFileId;
+    const getRes = await request(app).get(`/api/menu/images/${imageId}`);
+
+    expect(getRes.status).to.equal(200);
+    expect(getRes.headers['content-type']).to.include('image');
+  });
+
+  it('returns 400 for malformed image id', async () => {
+    const res = await request(app).get('/api/menu/images/not-a-valid-id');
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('Invalid image id');
+  });
+
+  it('returns 404 when image id does not exist', async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+    const res = await request(app).get(`/api/menu/images/${fakeId}`);
+    expect(res.status).to.equal(404);
+    expect(res.body.message).to.equal('Image not found');
   });
 });
