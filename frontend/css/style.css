@@ -459,3 +459,21 @@ td {
     font-size: 1.5rem;
   }
 }
+
+.analytics-chart-card {
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  min-height: 430px;
+}
+
+.chart-box {
+  width: 100%;
+  max-width: 420px;
+  margin: 25px auto 10px;
+  padding: 10px;
+}
+
+.chart-box canvas {
+  width: 100% !important;
+  height: auto !important;
+}
