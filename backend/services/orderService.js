@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const TableSession = require('../models/TableSession');
+const MenuItem = require('../models/MenuItem');
 const AppError = require('../utils/AppError');
 
 async function getOrderById(orderId) {
@@ -32,6 +33,28 @@ async function placeOrder(sessionId) {
   const cart = await Cart.findOne({ sessionId: session._id });
   if (!cart || cart.items.length === 0) {
     throw new AppError('Cart is empty', 400, 'CART_EMPTY');
+  }
+
+  const menuItemIds = cart.items.map((item) => item.menuItemId);
+  const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } })
+    .select('_id isAvailable restaurantId')
+    .lean();
+  const menuItemById = new Map(menuItems.map((item) => [String(item._id), item]));
+  const unavailableItem = cart.items.find((item) => {
+    const menuItem = menuItemById.get(String(item.menuItemId));
+    return (
+      !menuItem ||
+      !menuItem.isAvailable ||
+      String(menuItem.restaurantId) !== String(session.restaurantId)
+    );
+  });
+
+  if (unavailableItem) {
+    throw new AppError(
+      `${unavailableItem.name} is no longer available. Please remove it from your cart.`,
+      400,
+      'CART_ITEM_UNAVAILABLE'
+    );
   }
 
   const TAX_RATE = 0.1;
