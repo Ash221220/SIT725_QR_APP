@@ -90,12 +90,8 @@ async function loadAnalytics() {
       analyticsRequest(`/analytics/my/peak-hours?${query}`),
       analyticsRequest(`/analytics/my/item-forecast?${query}`)
     ]);
-    console.log("Summary API response:", summaryData);
-    console.log("Peak Hours API response:", peakHoursData);
-    console.log("Forecast API response:", forecastData);
     renderSummary(summaryData.summary);
     renderPeakHours(peakHoursData.peakHours);
-    console.log("Forecast API response:", forecastData);
     renderFoodItemsPieChart(forecastData.forecast || forecastData);
 
     message.textContent = "Analytics loaded successfully.";
