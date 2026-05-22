@@ -60,11 +60,25 @@ describe('GET /pages/index.html', () => {
   });
 });
 
-// ─── menu.html ────────────────────────────────────────────────────────────────
+// ─── menu.html (guest) ───────────────────────────────────────────────────────
 
 describe('GET /pages/menu.html', () => {
   it('returns HTTP 200', () => {
     cy.request('/pages/menu.html').its('status').should('equal', 200);
+  });
+
+  it('renders guest menu structure', () => {
+    cy.visit('/pages/menu.html?restaurantId=507f1f77bcf86cd799439011&table=1', {
+      failOnStatusCode: false,
+    });
+    cy.get('#menuContainer').should('exist');
+    cy.get('#menuStatus').should('exist');
+  });
+});
+
+describe('GET /menu/:restaurantId — QR route', () => {
+  it('returns HTTP 200 for menu page', () => {
+    cy.request('/menu/507f1f77bcf86cd799439011?table=1').its('status').should('equal', 200);
   });
 });
 
@@ -113,5 +127,9 @@ describe('Static assets are served correctly', () => {
 
   it('admin.js is reachable', () => {
     cy.request('/js/admin.js').its('status').should('equal', 200);
+  });
+
+  it('menu.js is reachable', () => {
+    cy.request('/js/menu.js').its('status').should('equal', 200);
   });
 });

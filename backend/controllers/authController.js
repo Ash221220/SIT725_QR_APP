@@ -51,4 +51,33 @@ async function loginUser(req, res, next) {
   }
 }
 
-module.exports = { registerOwner, loginUser };
+async function getMe(req, res, next) {
+  try {
+    const user = await authService.getMe(req.user.id);
+    return res.status(200).json({ success: true, user });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function updateMe(req, res, next) {
+  try {
+    const { name, email } = req.body;
+    const user = await authService.updateMe(req.user.id, { name, email });
+    return res.status(200).json({ success: true, user });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function updatePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    await authService.updatePassword(req.user.id, { currentPassword, newPassword });
+    return res.status(200).json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+module.exports = { registerOwner, loginUser, getMe, updateMe, updatePassword };
