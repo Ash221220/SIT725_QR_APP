@@ -4,6 +4,7 @@ const SESSION_KEY = "guestSessionId";
 
 let cartState = {};
 let menuItemNames = {};
+let menuSocket = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   M.Modal.init(document.querySelectorAll(".modal"));
@@ -27,6 +28,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   await loadPublicMenu(restaurantId);
+  initializeMenuSocket(restaurantId);
 });
 
 function getRestaurantIdFromUrl() {
@@ -125,6 +127,20 @@ async function loadPublicMenu(restaurantId) {
   } catch (error) {
     showError(error.message);
   }
+}
+
+function initializeMenuSocket(restaurantId) {
+  if (typeof io !== "function" || menuSocket) return;
+
+  menuSocket = io();
+
+  menuSocket.on("connect", () => {
+    menuSocket.emit("joinRestaurantMenu", restaurantId);
+  });
+
+  menuSocket.on("menuUpdated", async () => {
+    await loadPublicMenu(restaurantId);
+  });
 }
 
 const CATEGORY_ICONS = {

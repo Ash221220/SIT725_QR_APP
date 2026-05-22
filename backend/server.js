@@ -1,7 +1,9 @@
 // Purpose: Entry point for Express app setup, middleware registration, and API route mounting.
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const { Server } = require('socket.io');
 const connectDB = require('./config/db');
 
 const authRoutes = require('./routes/authRoutes');
@@ -42,11 +44,33 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use(errorHandler);
 
+function configureSocket(server) {
+  const io = new Server(server, {
+    cors: {
+      origin: '*',
+    },
+  });
+
+  app.set('io', io);
+
+  io.on('connection', (socket) => {
+    socket.on('joinRestaurantMenu', (restaurantId) => {
+      if (restaurantId) {
+        socket.join(`restaurant:${restaurantId}`);
+      }
+    });
+  });
+
+  return io;
+}
+
 // Connect to DB and start listening only when run directly (not imported by tests)
 if (require.main === module) {
   connectDB();
   const PORT = process.env.PORT || 5001;
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+  configureSocket(server);
+  server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
 }
