@@ -51,9 +51,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const imageInput = document.getElementById("itemImage");
+  const imageInput = document.getElementById("itemImageFile");
   if (imageInput) {
-    imageInput.addEventListener("input", updateImagePreview);
+    imageInput.addEventListener("change", updateImagePreview);
   }
 
   const categorySelect = document.getElementById("itemCategory");
@@ -91,6 +91,25 @@ async function ownerApiRequest(endpoint, method = "GET", body = null) {
 
   if (!response.ok) {
     throw new Error(data.message || "Request failed");
+  }
+
+  return data;
+}
+
+async function ownerFileRequest(endpoint, formData) {
+  const token = localStorage.getItem("token");
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Upload failed");
   }
 
   return data;
@@ -220,6 +239,8 @@ function resetMenuItemForm() {
   form.reset();
 
   document.getElementById("menuItemId").value = "";
+  document.getElementById("itemImage").value = "";
+  document.getElementById("itemImageFileId").value = "";
   document.getElementById("menuModalHeading").textContent = "Add Menu Item";
   document.getElementById("itemAvailable").checked = true;
 
@@ -240,6 +261,8 @@ function editMenuItem(itemId) {
   document.getElementById("itemDescription").value = item.description || "";
   document.getElementById("itemPrice").value = item.price;
   document.getElementById("itemImage").value = item.image || "";
+  document.getElementById("itemImageFileId").value = item.imageFileId || "";
+  document.getElementById("itemImageFile").value = "";
   document.getElementById("itemAvailable").checked = !!item.isAvailable;
 
   setSelectValue("itemCategory", normalizeCategory(item.category));
@@ -269,7 +292,10 @@ async function handleMenuItemSubmit(event) {
   const dietaryType = document.getElementById("itemDietaryType").value;
   const description = document.getElementById("itemDescription").value.trim();
   const priceRaw = document.getElementById("itemPrice").value;
-  const image = document.getElementById("itemImage").value.trim();
+  const imageInput = document.getElementById("itemImage");
+  const imageFileIdInput = document.getElementById("itemImageFileId");
+  let image = imageInput.value.trim();
+  let imageFileId = imageFileIdInput.value.trim();
 
   const price = Number(priceRaw);
   if (Number.isNaN(price) || price < 0) {
@@ -277,17 +303,29 @@ async function handleMenuItemSubmit(event) {
     return;
   }
 
-  const payload = {
-    name,
-    category: normalizeCategory(category),
-    dietaryType: dietaryType || undefined,
-    description,
-    price,
-    image,
-    isAvailable: document.getElementById("itemAvailable").checked,
-  };
-
   try {
+    const imageFile = document.getElementById("itemImageFile").files[0];
+    if (imageFile) {
+      const formData = new FormData();
+      formData.append("image", imageFile);
+      const upload = await ownerFileRequest("/menu/my/images", formData);
+      image = upload.imageUrl;
+      imageFileId = upload.imageFileId;
+      imageInput.value = image;
+      imageFileIdInput.value = imageFileId;
+    }
+
+    const payload = {
+      name,
+      category: normalizeCategory(category),
+      dietaryType: dietaryType || undefined,
+      description,
+      price,
+      image,
+      imageFileId: imageFileId || undefined,
+      isAvailable: document.getElementById("itemAvailable").checked,
+    };
+
     if (itemId) {
       await ownerApiRequest(`/menu/my/${itemId}`, "PUT", payload);
       M.toast({ html: "Menu item updated" });
@@ -526,9 +564,20 @@ function setSelectValue(selectId, value) {
 }
 
 function updateImagePreview() {
+  const fileInput = document.getElementById("itemImageFile");
   const imageUrl = document.getElementById("itemImage").value.trim();
   const imageEl = document.getElementById("itemImagePreview");
   const wrapEl = document.getElementById("itemImagePreviewWrap");
+  const selectedFile = fileInput?.files?.[0];
+
+  if (selectedFile) {
+    imageEl.src = URL.createObjectURL(selectedFile);
+    wrapEl.classList.remove("hide");
+    imageEl.onerror = () => {
+      wrapEl.classList.add("hide");
+    };
+    return;
+  }
 
   if (!imageUrl) {
     wrapEl.classList.add("hide");

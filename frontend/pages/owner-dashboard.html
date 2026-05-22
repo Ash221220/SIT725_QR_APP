@@ -225,9 +225,17 @@
           <label for="itemPrice">Price</label>
         </div>
 
-        <div class="input-field">
-          <input id="itemImage" type="url" />
-          <label for="itemImage">Image URL (optional)</label>
+        <input id="itemImage" type="hidden" />
+        <input id="itemImageFileId" type="hidden" />
+
+        <div class="file-field input-field">
+          <div class="btn teal darken-2">
+            <span>Image</span>
+            <input id="itemImageFile" type="file" accept="image/*" />
+          </div>
+          <div class="file-path-wrapper">
+            <input class="file-path validate" type="text" placeholder="Upload item image (optional)" />
+          </div>
         </div>
 
         <div id="itemImagePreviewWrap" class="owner-image-preview-wrap hide">
