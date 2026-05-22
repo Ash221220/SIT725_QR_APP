@@ -1,6 +1,7 @@
 const MENU_CATEGORIES = ["Appetizers", "Mains", "Desserts", "Sides", "Beverages"];
 const GUEST_CONTEXT_KEY = "guestContext";
-const SESSION_KEY = "guestSessionId";
+const LEGACY_SESSION_KEY = "guestSessionId";
+const SESSION_KEY_PREFIX = "guestSessionId";
 
 let cartState = {};
 let menuItemNames = {};
@@ -58,11 +59,25 @@ function getGuestContext() {
   }
 }
 
+function buildSessionStorageKey(restaurantId, tableNumber) {
+  if (!restaurantId || tableNumber === undefined || tableNumber === null || tableNumber === "") {
+    return null;
+  }
+
+  return `${SESSION_KEY_PREFIX}:${restaurantId}:${Number(tableNumber)}`;
+}
+
 async function startSession(restaurantId, tableNumber) {
   if (!tableNumber) return;
 
-  const existing = sessionStorage.getItem(SESSION_KEY);
+  const sessionKey = buildSessionStorageKey(restaurantId, tableNumber);
+  if (!sessionKey) return;
+
+  const existing = sessionStorage.getItem(sessionKey);
   if (existing) return;
+
+  // Backward compatibility cleanup for older global key.
+  sessionStorage.removeItem(LEGACY_SESSION_KEY);
 
   const res = await fetch(`${API_BASE_URL}/sessions/start`, {
     method: "POST",
@@ -72,12 +87,15 @@ async function startSession(restaurantId, tableNumber) {
 
   const data = await res.json();
   if (res.ok && data.session) {
-    sessionStorage.setItem(SESSION_KEY, data.session._id);
+    sessionStorage.setItem(sessionKey, data.session._id);
   }
 }
 
 function getSessionId() {
-  return sessionStorage.getItem(SESSION_KEY);
+  const context = getGuestContext();
+  const sessionKey = buildSessionStorageKey(context.restaurantId, context.tableNumber);
+  if (!sessionKey) return null;
+  return sessionStorage.getItem(sessionKey);
 }
 
 function updateTableLabel(tableNumber) {
