@@ -17,6 +17,15 @@ async function getOwnerContext(userId) {
   return owner;
 }
 
+function emitMenuUpdated(req, restaurantId) {
+  const io = req.app.get('io');
+  if (!io) return;
+
+  io.to(`restaurant:${restaurantId}`).emit('menuUpdated', {
+    restaurantId: String(restaurantId),
+  });
+}
+
 async function getOwnerMenu(req, res, next) {
   try {
     const owner = await getOwnerContext(req.user.id);
@@ -73,6 +82,7 @@ async function createMenuItem(req, res, next) {
       image,
       isAvailable,
     });
+    emitMenuUpdated(req, owner.restaurantId);
     return res.status(201).json({ success: true, item });
   } catch (error) {
     return next(error);
@@ -84,6 +94,7 @@ async function updateMenuItem(req, res, next) {
     const owner = await getOwnerContext(req.user.id);
     const { itemId } = req.params;
     const item = await menuService.updateMenuItem(owner.restaurantId, itemId, req.body);
+    emitMenuUpdated(req, owner.restaurantId);
     return res.status(200).json({ success: true, item });
   } catch (error) {
     return next(error);
@@ -95,6 +106,7 @@ async function deleteMenuItem(req, res, next) {
     const owner = await getOwnerContext(req.user.id);
     const { itemId } = req.params;
     await menuService.deleteMenuItem(owner.restaurantId, itemId);
+    emitMenuUpdated(req, owner.restaurantId);
     return res.status(200).json({ success: true, message: 'Menu item deleted' });
   } catch (error) {
     return next(error);
@@ -110,6 +122,7 @@ async function toggleAvailability(req, res, next) {
       throw new AppError('isAvailable must be a boolean', 400);
     }
     const item = await menuService.setAvailability(owner.restaurantId, itemId, isAvailable);
+    emitMenuUpdated(req, owner.restaurantId);
     return res.status(200).json({ success: true, item });
   } catch (error) {
     return next(error);

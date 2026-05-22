@@ -4,6 +4,7 @@ const SESSION_KEY = "guestSessionId";
 
 let cartState = {};
 let menuItemNames = {};
+let menuSocket = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   M.Modal.init(document.querySelectorAll(".modal"));
@@ -27,6 +28,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   await loadPublicMenu(restaurantId);
+  initializeMenuSocket(restaurantId);
 });
 
 function getRestaurantIdFromUrl() {
@@ -114,7 +116,7 @@ async function loadPublicMenu(restaurantId) {
     if (sessionId) {
       const cartRes = await fetch(`${API_BASE_URL}/cart/${sessionId}`);
       const cartData = await cartRes.json();
-      if (cartRes.ok && cartData.cart?.items?.length) {
+      if (cartRes.ok && cartData.cart) {
         syncCartState(cartData.cart);
         cartData.cart.items.forEach((item) => {
           updateMenuCardButton(String(item.menuItemId), item.quantity);
@@ -125,6 +127,21 @@ async function loadPublicMenu(restaurantId) {
   } catch (error) {
     showError(error.message);
   }
+}
+
+function initializeMenuSocket(restaurantId) {
+  if (typeof io !== "function" || menuSocket) return;
+
+  menuSocket = io();
+
+  menuSocket.on("connect", () => {
+    menuSocket.emit("joinRestaurantMenu", restaurantId);
+  });
+
+  menuSocket.on("menuUpdated", async () => {
+    await loadPublicMenu(restaurantId);
+    await refreshCartDrawer();
+  });
 }
 
 const CATEGORY_ICONS = {
@@ -490,6 +507,7 @@ async function refreshCartDrawer() {
     const res = await fetch(`${API_BASE_URL}/cart/${sessionId}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.message);
+    syncCartState(data.cart);
     renderCartDrawer(data.cart);
     updateCartBadge(data.cart.itemCount);
   } catch {
@@ -532,11 +550,13 @@ function renderCartDrawer(cart) {
   const itemsList = document.getElementById("cartItemsList");
   const emptyMsg = document.getElementById("cartEmpty");
   const footer = document.getElementById("cartDrawerFooter");
+  const placeOrderBtn = document.getElementById("placeOrderBtn");
 
   if (!cart.items || cart.items.length === 0) {
     itemsList?.classList.add("hide");
     emptyMsg?.classList.remove("hide");
     footer?.classList.add("hide");
+    if (placeOrderBtn) placeOrderBtn.disabled = false;
     return;
   }
 
@@ -544,27 +564,39 @@ function renderCartDrawer(cart) {
   itemsList?.classList.remove("hide");
   footer?.classList.remove("hide");
 
-  itemsList.innerHTML = cart.items.map((item) => `
-    <div class="cart-item-row" data-id="${escapeHtml(String(item.menuItemId))}">
+  const hasUnavailableItems = cart.items.some((item) => item.availabilityStatus !== "available");
+  if (placeOrderBtn) {
+    placeOrderBtn.disabled = hasUnavailableItems;
+  }
+
+  itemsList.innerHTML = `
+    ${hasUnavailableItems ? '<div class="cart-unavailable-warning">Remove unavailable items before placing your order.</div>' : ""}
+    ${cart.items.map((item) => `
+    <div class="cart-item-row ${item.availabilityStatus !== "available" ? "cart-item-row-unavailable" : ""}" data-id="${escapeHtml(String(item.menuItemId))}">
       <div class="cart-item-info">
         <div class="cart-item-name">${escapeHtml(item.name)}</div>
         <div class="cart-item-price">$${Number(item.price).toFixed(2)} each</div>
+        ${renderCartItemAvailability(item)}
       </div>
       <div class="cart-item-controls">
-        <button class="cart-qty-btn cart-qty-dec" data-id="${escapeHtml(String(item.menuItemId))}">
-          <i class="material-icons" style="font-size:1rem;">remove</i>
-        </button>
+        ${item.availabilityStatus === "available"
+          ? `<button class="cart-qty-btn cart-qty-dec" data-id="${escapeHtml(String(item.menuItemId))}">
+              <i class="material-icons" style="font-size:1rem;">remove</i>
+            </button>`
+          : ""}
         <span class="cart-qty-value">${item.quantity}</span>
-        <button class="cart-qty-btn cart-qty-inc" data-id="${escapeHtml(String(item.menuItemId))}">
-          <i class="material-icons" style="font-size:1rem;">add</i>
-        </button>
+        ${item.availabilityStatus === "available"
+          ? `<button class="cart-qty-btn cart-qty-inc" data-id="${escapeHtml(String(item.menuItemId))}">
+              <i class="material-icons" style="font-size:1rem;">add</i>
+            </button>`
+          : ""}
       </div>
       <div class="cart-item-subtotal">$${(item.price * item.quantity).toFixed(2)}</div>
       <button class="cart-item-remove" data-id="${escapeHtml(String(item.menuItemId))}" title="Remove">
         <i class="material-icons" style="font-size:1.05rem;">delete_outline</i>
       </button>
     </div>
-  `).join("");
+  `).join("")}`;
 
   const subtotal = cart.subtotal || 0;
   const tax = subtotal * 0.1;
@@ -573,6 +605,16 @@ function renderCartDrawer(cart) {
   document.getElementById("cartSubtotal").textContent = `$${subtotal.toFixed(2)}`;
   document.getElementById("cartTax").textContent = `$${tax.toFixed(2)}`;
   document.getElementById("cartTotal").innerHTML = `<strong>$${total.toFixed(2)}</strong>`;
+}
+
+function renderCartItemAvailability(item) {
+  if (item.availabilityStatus === "available") return "";
+
+  const label = item.availabilityStatus === "removed"
+    ? "Removed from menu"
+    : "No longer available";
+
+  return `<div class="cart-item-availability">${label}</div>`;
 }
 
 function updateCartBadge(count) {

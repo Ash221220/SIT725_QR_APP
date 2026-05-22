@@ -4,10 +4,30 @@ const MenuItem = require('../models/MenuItem');
 const TableSession = require('../models/TableSession');
 const AppError = require('../utils/AppError');
 
-function formatCart(cart) {
+async function formatCart(cart) {
   const obj = cart.toObject ? cart.toObject() : cart;
+  const menuItemIds = (obj.items || []).map((item) => item.menuItemId).filter(Boolean);
+  const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } })
+    .select('_id isAvailable')
+    .lean();
+  const menuItemById = new Map(menuItems.map((item) => [String(item._id), item]));
+
+  const items = (obj.items || []).map((item) => {
+    const menuItem = menuItemById.get(String(item.menuItemId));
+    const availabilityStatus = !menuItem
+      ? 'removed'
+      : menuItem.isAvailable
+        ? 'available'
+        : 'unavailable';
+
+    return {
+      ...item,
+      isAvailable: availabilityStatus === 'available',
+      availabilityStatus,
+    };
+  });
   const itemCount = (obj.items || []).reduce((sum, item) => sum + item.quantity, 0);
-  return { ...obj, itemCount };
+  return { ...obj, items, itemCount };
 }
 
 async function resolveSession(sessionId) {
@@ -22,6 +42,20 @@ async function resolveSession(sessionId) {
     throw new AppError('Session is no longer active', 400, 'SESSION_CLOSED');
   }
   return session;
+}
+
+async function resolveOrderableMenuItem(menuItemId, restaurantId) {
+  const menuItem = await MenuItem.findById(menuItemId);
+  if (!menuItem) {
+    throw new AppError('Menu item not found', 404, 'MENU_ITEM_NOT_FOUND');
+  }
+  if (!menuItem.isAvailable) {
+    throw new AppError('Menu item is not available', 400, 'ITEM_UNAVAILABLE');
+  }
+  if (String(menuItem.restaurantId) !== String(restaurantId)) {
+    throw new AppError('Menu item does not belong to this restaurant', 400, 'ITEM_RESTAURANT_MISMATCH');
+  }
+  return menuItem;
 }
 
 function recalcSubtotal(items) {
@@ -62,17 +96,7 @@ async function addItem(sessionId, menuItemId, quantity = 1) {
   }
 
   const session = await resolveSession(sessionId);
-
-  const menuItem = await MenuItem.findById(menuItemId);
-  if (!menuItem) {
-    throw new AppError('Menu item not found', 404, 'MENU_ITEM_NOT_FOUND');
-  }
-  if (!menuItem.isAvailable) {
-    throw new AppError('Menu item is not available', 400, 'ITEM_UNAVAILABLE');
-  }
-  if (String(menuItem.restaurantId) !== String(session.restaurantId)) {
-    throw new AppError('Menu item does not belong to this restaurant', 400, 'ITEM_RESTAURANT_MISMATCH');
-  }
+  const menuItem = await resolveOrderableMenuItem(menuItemId, session.restaurantId);
 
   let cart = await Cart.findOne({ sessionId: session._id });
   if (!cart) {
@@ -133,6 +157,7 @@ async function updateQuantity(sessionId, menuItemId, quantity) {
   if (quantity === 0) {
     cart.items.splice(itemIndex, 1);
   } else {
+    await resolveOrderableMenuItem(menuItemId, session.restaurantId);
     cart.items[itemIndex].quantity = quantity;
   }
 
