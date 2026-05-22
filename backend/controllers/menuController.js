@@ -104,6 +104,9 @@ async function uploadMenuImage(req, res, next) {
     if (!req.file) {
       throw new AppError('Image file is required', 400);
     }
+    if (!req.file.mimetype.startsWith('image/')) {
+      throw new AppError('Only image files are allowed', 400);
+    }
 
     const storedFile = await uploadBufferToGridFS(req.file, owner);
     const imageFileId = String(storedFile._id);

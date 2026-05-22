@@ -3,6 +3,7 @@ const express = require('express');
 const multer = require('multer');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize } = require('../middleware/roleMiddleware');
+const AppError = require('../utils/AppError');
 const {
   getOwnerMenu,
   getOwnerTables,
@@ -21,7 +22,10 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    cb(null, file.mimetype.startsWith('image/'));
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new AppError('Only image files are allowed', 400));
+    }
+    return cb(null, true);
   },
 });
 

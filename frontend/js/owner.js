@@ -168,7 +168,7 @@ function renderOwnerMenu() {
       (item) => `
       <tr>
         <td>${renderOwnerItemThumbnail(item)}</td>
-        <td>${item.name || "-"}</td>
+        <td>${escapeHtml(item.name || "-")}</td>
         <td>${normalizeCategory(item.category)}</td>
         <td><span class="dietary-badge ${item.dietaryType === "veg" ? "veg" : "non-veg"}">${formatDietaryType(item.dietaryType)}</span></td>
         <td>$${Number(item.price || 0).toFixed(2)}</td>
@@ -209,7 +209,7 @@ function renderCategorySections() {
                 <div class="category-item-row clickable-row" onclick="editMenuItem('${item._id}')">
                   ${renderOwnerItemThumbnail(item)}
                   <div>
-                    <strong>${item.name}</strong>
+                    <strong>${escapeHtml(item.name)}</strong>
                     <div class="grey-text text-darken-1">$${Number(item.price || 0).toFixed(2)}</div>
                   </div>
                   <span class="dietary-badge ${item.dietaryType === "veg" ? "veg" : "non-veg"}">${formatDietaryType(item.dietaryType)}</span>
@@ -235,8 +235,8 @@ function renderOwnerItemThumbnail(item) {
   return `
     <img
       class="owner-menu-thumb"
-      src="${item.image}"
-      alt="${item.name || "Menu item"}"
+      src="${escapeHtml(item.image)}"
+      alt="${escapeHtml(item.name || "Menu item")}"
       loading="lazy"
     />
   `;
@@ -575,6 +575,14 @@ function normalizeCategory(category) {
 
 function formatDietaryType(type) {
   return type === "veg" ? "Veg" : "Non-Veg";
+}
+
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function setSelectValue(selectId, value) {
