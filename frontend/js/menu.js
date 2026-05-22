@@ -1,4 +1,16 @@
 const MENU_CATEGORIES = ["Appetizers", "Mains", "Desserts", "Sides", "Beverages"];
+const CATEGORY_ALIASES = {
+  appetizer: "Appetizers",
+  appetizers: "Appetizers",
+  main: "Mains",
+  mains: "Mains",
+  dessert: "Desserts",
+  desserts: "Desserts",
+  side: "Sides",
+  sides: "Sides",
+  beverage: "Beverages",
+  beverages: "Beverages",
+};
 const GUEST_CONTEXT_KEY = "guestContext";
 const LEGACY_SESSION_KEY = "guestSessionId";
 const SESSION_KEY_PREFIX = "guestSessionId";
@@ -221,7 +233,7 @@ function renderMenu(items) {
 
 function renderMenuItemCard(item) {
   const isVeg = item.dietaryType === "veg";
-  const showDietary = item.category !== "Beverages" && item.dietaryType;
+  const showDietary = normalizeCategory(item.category) !== "Beverages" && item.dietaryType;
 
   const imageSectionHtml = item.image
     ? `<div class="mic-image">
@@ -277,7 +289,8 @@ function renderMenuItemCard(item) {
 }
 
 function normalizeCategory(category) {
-  return MENU_CATEGORIES.includes(category) ? category : "Mains";
+  const normalized = CATEGORY_ALIASES[String(category || "").trim().toLowerCase()];
+  return normalized || "Mains";
 }
 
 function escapeHtml(text) {
