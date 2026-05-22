@@ -144,7 +144,7 @@ async function loadOwnerMenu() {
   } catch (error) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="center-align red-text">${error.message}</td>
+        <td colspan="7" class="center-align red-text">${error.message}</td>
       </tr>
     `;
   }
@@ -157,7 +157,7 @@ function renderOwnerMenu() {
   if (!filteredItems.length) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="center-align">No menu items found</td>
+        <td colspan="7" class="center-align">No menu items found</td>
       </tr>
     `;
     return;
@@ -167,6 +167,7 @@ function renderOwnerMenu() {
     .map(
       (item) => `
       <tr>
+        <td>${renderOwnerItemThumbnail(item)}</td>
         <td>${item.name || "-"}</td>
         <td>${normalizeCategory(item.category)}</td>
         <td><span class="dietary-badge ${item.dietaryType === "veg" ? "veg" : "non-veg"}">${formatDietaryType(item.dietaryType)}</span></td>
@@ -206,6 +207,7 @@ function renderCategorySections() {
             ${items.length
               ? items.map((item) => `
                 <div class="category-item-row clickable-row" onclick="editMenuItem('${item._id}')">
+                  ${renderOwnerItemThumbnail(item)}
                   <div>
                     <strong>${item.name}</strong>
                     <div class="grey-text text-darken-1">$${Number(item.price || 0).toFixed(2)}</div>
@@ -219,6 +221,25 @@ function renderCategorySections() {
       </div>
     `;
   }).join("");
+}
+
+function renderOwnerItemThumbnail(item) {
+  if (!item.image) {
+    return `
+      <div class="owner-menu-thumb owner-menu-thumb-placeholder">
+        <i class="material-icons">restaurant</i>
+      </div>
+    `;
+  }
+
+  return `
+    <img
+      class="owner-menu-thumb"
+      src="${item.image}"
+      alt="${item.name || "Menu item"}"
+      loading="lazy"
+    />
+  `;
 }
 
 function updateOwnerStats() {
