@@ -124,21 +124,22 @@ td {
   display: inline-block;
 }
 
-.badge-pending {
-  background-color: #fb8c00;
+.badge-pending   { background-color: #fb8c00; }
+.badge-approved  { background-color: #43a047; }
+.badge-disabled  { background-color: #e53935; }
+.badge-rejected  { background-color: #757575; }
+
+.dietary-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #ffffff;
 }
 
-.badge-approved {
-  background-color: #43a047;
-}
-
-.badge-disabled {
-  background-color: #e53935;
-}
-
-.badge-rejected {
-  background-color: #757575;
-}
+.dietary-badge.veg     { background: #2e7d32; }
+.dietary-badge.non-veg { background: #bf360c; }
 
 .custom-modal {
   width: 85% !important;
@@ -220,6 +221,7 @@ td {
 .restaurant-top-actions .btn {
   border-radius: 8px;
 }
+
 .full-width-card {
   width: 100% !important;
   flex-basis: 100% !important;
@@ -243,17 +245,21 @@ td {
   padding-left: 12px;
   border-radius: 8px;
 }
+
 .pending-owner-card {
   border-radius: 14px;
   min-height: 220px;
 }
+
 .pending-owner-card .card-title {
   font-weight: 600;
   color: #004d40;
 }
+
 .pending-owner-card p {
   margin: 8px 0;
 }
+
 .pending-owner-actions {
   display: flex;
   justify-content: flex-end;
@@ -304,23 +310,6 @@ td {
   border-bottom: none;
 }
 
-.dietary-badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 999px;
-  padding: 4px 10px;
-  color: #ffffff;
-}
-
-.dietary-badge.veg {
-  background: #2e7d32;
-}
-
-.dietary-badge.non-veg {
-  background: #bf360c;
-}
-
 .owner-image-preview-wrap {
   margin: 8px 0 16px;
 }
@@ -333,64 +322,6 @@ td {
   border: 1px solid #e0e0e0;
 }
 
-.guest-menu-page {
-  background: #f5f6fa;
-  min-height: 100vh;
-}
-
-.guest-menu-page .brand-logo {
-  font-size: 1.4rem;
-}
-
-.table-badge {
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 0.95rem;
-  line-height: 1.2;
-}
-
-.menu-category-section {
-  margin-bottom: 28px;
-}
-
-.menu-category-title {
-  margin: 0 0 12px;
-  font-weight: 600;
-  color: #00695c;
-}
-
-.menu-item-card .card-title {
-  font-size: 1.25rem;
-  margin-bottom: 8px;
-}
-
-.menu-item-desc {
-  font-size: 0.9rem;
-  margin: 0 0 10px;
-}
-
-.menu-item-price {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #004d40;
-  margin: 8px 0;
-}
-
-.menu-item-image-wrap {
-  max-height: 180px;
-  overflow: hidden;
-}
-
-.menu-item-image {
-  width: 100%;
-  height: 180px;
-  object-fit: cover;
-}
-
-/* Analytics Section Styles */
 .analytics-card {
   margin-bottom: 2rem;
 }
@@ -452,17 +383,9 @@ td {
   font-weight: 600;
 }
 
-.analytics-trend.up {
-  color: #2e7d32;
-}
-
-.analytics-trend.down {
-  color: #bf360c;
-}
-
-.analytics-trend.stable {
-  color: #616161;
-}
+.analytics-trend.up     { color: #2e7d32; }
+.analytics-trend.down   { color: #bf360c; }
+.analytics-trend.stable { color: #616161; }
 
 .analytics-stat-card {
   background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
@@ -474,7 +397,7 @@ td {
 }
 
 .analytics-stat-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   transform: translateY(-2px);
 }
 

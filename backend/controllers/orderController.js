@@ -10,6 +10,20 @@ async function getOrder(req, res, next) {
   }
 }
 
+async function placeOrder(req, res, next) {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'sessionId is required' });
+    }
+    const order = await orderService.placeOrder(sessionId);
+    return res.status(201).json({ success: true, order });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   getOrder,
+  placeOrder,
 };
