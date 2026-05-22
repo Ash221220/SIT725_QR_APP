@@ -35,7 +35,7 @@ async function getTablesByOwner(restaurantId) {
 
 async function createMenuItem(
   restaurantId,
-  { name, category, dietaryType, description, price, image, isAvailable }
+  { name, category, dietaryType, description, price, image, imageFileId, isAvailable }
 ) {
   const item = await MenuItem.create({
     restaurantId,
@@ -45,6 +45,7 @@ async function createMenuItem(
     description,
     price,
     image,
+    imageFileId,
     isAvailable: isAvailable !== undefined ? isAvailable : true,
   });
   return item;
@@ -58,7 +59,16 @@ async function updateMenuItem(restaurantId, itemId, updates) {
   if (!item) {
     throw new AppError('Menu item not found', 404);
   }
-  const allowed = ['name', 'category', 'dietaryType', 'description', 'price', 'image', 'isAvailable'];
+  const allowed = [
+    'name',
+    'category',
+    'dietaryType',
+    'description',
+    'price',
+    'image',
+    'imageFileId',
+    'isAvailable',
+  ];
   allowed.forEach((key) => {
     if (updates[key] !== undefined) {
       item[key] = updates[key];

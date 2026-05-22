@@ -51,9 +51,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const imageInput = document.getElementById("itemImage");
+  const imageInput = document.getElementById("itemImageFile");
   if (imageInput) {
-    imageInput.addEventListener("input", updateImagePreview);
+    imageInput.addEventListener("change", updateImagePreview);
   }
 
   const categorySelect = document.getElementById("itemCategory");
@@ -96,6 +96,25 @@ async function ownerApiRequest(endpoint, method = "GET", body = null) {
   return data;
 }
 
+async function ownerFileRequest(endpoint, formData) {
+  const token = localStorage.getItem("token");
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Upload failed");
+  }
+
+  return data;
+}
+
 function getFilteredItems() {
   const searchInput = document.getElementById("ownerMenuSearch");
   const searchText = searchInput ? searchInput.value.toLowerCase().trim() : "";
@@ -125,7 +144,7 @@ async function loadOwnerMenu() {
   } catch (error) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="center-align red-text">${error.message}</td>
+        <td colspan="7" class="center-align red-text">${error.message}</td>
       </tr>
     `;
   }
@@ -138,7 +157,7 @@ function renderOwnerMenu() {
   if (!filteredItems.length) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="center-align">No menu items found</td>
+        <td colspan="7" class="center-align">No menu items found</td>
       </tr>
     `;
     return;
@@ -148,7 +167,8 @@ function renderOwnerMenu() {
     .map(
       (item) => `
       <tr>
-        <td>${item.name || "-"}</td>
+        <td>${renderOwnerItemThumbnail(item)}</td>
+        <td>${escapeHtml(item.name || "-")}</td>
         <td>${normalizeCategory(item.category)}</td>
         <td><span class="dietary-badge ${item.dietaryType === "veg" ? "veg" : "non-veg"}">${formatDietaryType(item.dietaryType)}</span></td>
         <td>$${Number(item.price || 0).toFixed(2)}</td>
@@ -187,8 +207,9 @@ function renderCategorySections() {
             ${items.length
               ? items.map((item) => `
                 <div class="category-item-row clickable-row" onclick="editMenuItem('${item._id}')">
+                  ${renderOwnerItemThumbnail(item)}
                   <div>
-                    <strong>${item.name}</strong>
+                    <strong>${escapeHtml(item.name)}</strong>
                     <div class="grey-text text-darken-1">$${Number(item.price || 0).toFixed(2)}</div>
                   </div>
                   <span class="dietary-badge ${item.dietaryType === "veg" ? "veg" : "non-veg"}">${formatDietaryType(item.dietaryType)}</span>
@@ -200,6 +221,25 @@ function renderCategorySections() {
       </div>
     `;
   }).join("");
+}
+
+function renderOwnerItemThumbnail(item) {
+  if (!item.image) {
+    return `
+      <div class="owner-menu-thumb owner-menu-thumb-placeholder">
+        <i class="material-icons">restaurant</i>
+      </div>
+    `;
+  }
+
+  return `
+    <img
+      class="owner-menu-thumb"
+      src="${escapeHtml(item.image)}"
+      alt="${escapeHtml(item.name || "Menu item")}"
+      loading="lazy"
+    />
+  `;
 }
 
 function updateOwnerStats() {
@@ -220,6 +260,8 @@ function resetMenuItemForm() {
   form.reset();
 
   document.getElementById("menuItemId").value = "";
+  document.getElementById("itemImage").value = "";
+  document.getElementById("itemImageFileId").value = "";
   document.getElementById("menuModalHeading").textContent = "Add Menu Item";
   document.getElementById("itemAvailable").checked = true;
 
@@ -240,6 +282,8 @@ function editMenuItem(itemId) {
   document.getElementById("itemDescription").value = item.description || "";
   document.getElementById("itemPrice").value = item.price;
   document.getElementById("itemImage").value = item.image || "";
+  document.getElementById("itemImageFileId").value = item.imageFileId || "";
+  document.getElementById("itemImageFile").value = "";
   document.getElementById("itemAvailable").checked = !!item.isAvailable;
 
   setSelectValue("itemCategory", normalizeCategory(item.category));
@@ -269,7 +313,10 @@ async function handleMenuItemSubmit(event) {
   const dietaryType = document.getElementById("itemDietaryType").value;
   const description = document.getElementById("itemDescription").value.trim();
   const priceRaw = document.getElementById("itemPrice").value;
-  const image = document.getElementById("itemImage").value.trim();
+  const imageInput = document.getElementById("itemImage");
+  const imageFileIdInput = document.getElementById("itemImageFileId");
+  let image = imageInput.value.trim();
+  let imageFileId = imageFileIdInput.value.trim();
 
   const price = Number(priceRaw);
   if (Number.isNaN(price) || price < 0) {
@@ -277,17 +324,29 @@ async function handleMenuItemSubmit(event) {
     return;
   }
 
-  const payload = {
-    name,
-    category: normalizeCategory(category),
-    dietaryType: dietaryType || undefined,
-    description,
-    price,
-    image,
-    isAvailable: document.getElementById("itemAvailable").checked,
-  };
-
   try {
+    const imageFile = document.getElementById("itemImageFile").files[0];
+    if (imageFile) {
+      const formData = new FormData();
+      formData.append("image", imageFile);
+      const upload = await ownerFileRequest("/menu/my/images", formData);
+      image = upload.imageUrl;
+      imageFileId = upload.imageFileId;
+      imageInput.value = image;
+      imageFileIdInput.value = imageFileId;
+    }
+
+    const payload = {
+      name,
+      category: normalizeCategory(category),
+      dietaryType: dietaryType || undefined,
+      description,
+      price,
+      image,
+      imageFileId: imageFileId || undefined,
+      isAvailable: document.getElementById("itemAvailable").checked,
+    };
+
     if (itemId) {
       await ownerApiRequest(`/menu/my/${itemId}`, "PUT", payload);
       M.toast({ html: "Menu item updated" });
@@ -518,6 +577,14 @@ function formatDietaryType(type) {
   return type === "veg" ? "Veg" : "Non-Veg";
 }
 
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function setSelectValue(selectId, value) {
   const select = document.getElementById(selectId);
   if (!select) return;
@@ -526,9 +593,20 @@ function setSelectValue(selectId, value) {
 }
 
 function updateImagePreview() {
+  const fileInput = document.getElementById("itemImageFile");
   const imageUrl = document.getElementById("itemImage").value.trim();
   const imageEl = document.getElementById("itemImagePreview");
   const wrapEl = document.getElementById("itemImagePreviewWrap");
+  const selectedFile = fileInput?.files?.[0];
+
+  if (selectedFile) {
+    imageEl.src = URL.createObjectURL(selectedFile);
+    wrapEl.classList.remove("hide");
+    imageEl.onerror = () => {
+      wrapEl.classList.add("hide");
+    };
+    return;
+  }
 
   if (!imageUrl) {
     wrapEl.classList.add("hide");

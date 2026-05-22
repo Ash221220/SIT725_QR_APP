@@ -1,7 +1,10 @@
 // Purpose: Implement menu item business logic (create, read, update, delete, availability).
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const menuService = require('../services/menuService');
 const AppError = require('../utils/AppError');
+
+const IMAGE_BUCKET_NAME = 'menu_images';
 
 async function getOwnerContext(userId) {
   const owner = await User.findById(userId).select('role status restaurantId');
@@ -23,6 +26,35 @@ function emitMenuUpdated(req, restaurantId) {
 
   io.to(`restaurant:${restaurantId}`).emit('menuUpdated', {
     restaurantId: String(restaurantId),
+  });
+}
+
+function getImageBucket() {
+  if (!mongoose.connection.db) {
+    throw new AppError('Database connection is not ready', 503);
+  }
+  return new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: IMAGE_BUCKET_NAME,
+  });
+}
+
+function uploadBufferToGridFS(file, owner) {
+  const bucket = getImageBucket();
+  const filename = `${owner.restaurantId}-${Date.now()}-${file.originalname}`;
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = bucket.openUploadStream(filename, {
+      contentType: file.mimetype,
+      metadata: {
+        restaurantId: String(owner.restaurantId),
+        ownerId: String(owner._id),
+        originalName: file.originalname,
+      },
+    });
+
+    uploadStream.on('error', reject);
+    uploadStream.on('finish', () => resolve({ _id: uploadStream.id }));
+    uploadStream.end(file.buffer);
   });
 }
 
@@ -66,10 +98,68 @@ async function getPublicMenu(req, res, next) {
   }
 }
 
+async function uploadMenuImage(req, res, next) {
+  try {
+    const owner = await getOwnerContext(req.user.id);
+    if (!req.file) {
+      throw new AppError('Image file is required', 400);
+    }
+    if (!req.file.mimetype.startsWith('image/')) {
+      throw new AppError('Only image files are allowed', 400);
+    }
+
+    const storedFile = await uploadBufferToGridFS(req.file, owner);
+    const imageFileId = String(storedFile._id);
+
+    return res.status(201).json({
+      success: true,
+      imageFileId,
+      imageUrl: `/api/menu/images/${imageFileId}`,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getMenuImage(req, res, next) {
+  try {
+    const { imageFileId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(imageFileId)) {
+      throw new AppError('Invalid image id', 400);
+    }
+
+    const bucket = getImageBucket();
+    const objectId = new mongoose.Types.ObjectId(imageFileId);
+    const files = await bucket.find({ _id: objectId }).toArray();
+    const file = files[0];
+    if (!file) {
+      throw new AppError('Image not found', 404);
+    }
+
+    res.set('Content-Type', file.contentType || 'application/octet-stream');
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+
+    return bucket.openDownloadStream(objectId)
+      .on('error', next)
+      .pipe(res);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function createMenuItem(req, res, next) {
   try {
     const owner = await getOwnerContext(req.user.id);
-    const { name, category, dietaryType, description, price, image, isAvailable } = req.body;
+    const {
+      name,
+      category,
+      dietaryType,
+      description,
+      price,
+      image,
+      imageFileId,
+      isAvailable,
+    } = req.body;
     if (!name || price === undefined) {
       throw new AppError('Name and price are required', 400);
     }
@@ -80,6 +170,7 @@ async function createMenuItem(req, res, next) {
       description,
       price,
       image,
+      imageFileId,
       isAvailable,
     });
     emitMenuUpdated(req, owner.restaurantId);
@@ -134,6 +225,8 @@ module.exports = {
   getOwnerTables,
   getMenuByRestaurant,
   getPublicMenu,
+  uploadMenuImage,
+  getMenuImage,
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,

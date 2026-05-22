@@ -22,6 +22,13 @@ function errorHandler(err, req, res, next) {
     message = `Invalid value for field '${err.path}'`;
   }
 
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Image file must be 5MB or smaller'
+      : err.message;
+  }
+
   const body = {
     success: false,
     message: statusCode >= 500 ? 'Internal server error' : message,
