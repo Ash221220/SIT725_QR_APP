@@ -176,81 +176,51 @@ async function getItemSalesForecast(restaurantId, days = 30) {
   if (!orders.length) {
     return {
       forecastedItems: [],
-      message: 'Insufficient data for item sales forecast',
+      message: 'No orders found for this period',
+      analysisWindow: `Last ${days} days`,
+      generatedAt: new Date().toISOString(),
     };
   }
 
-  // Create daily item sales data
-  const itemSalesTimeSeries = {};
+  const itemTotals = {};
 
   orders.forEach((order) => {
-    const orderDate = new Date(order.createdAt);
-    const dateKey = orderDate.toISOString().slice(0, 10); // YYYY-MM-DD
-
     (order.items || []).forEach((item) => {
-      const itemName = item.name || 'Unknown';
-      if (!itemSalesTimeSeries[itemName]) {
-        itemSalesTimeSeries[itemName] = {};
+      const itemName =
+        item.name ||
+        item.itemName ||
+        item.menuItemName ||
+        'Unknown Item';
+
+      const quantity = Number(item.quantity || 1);
+
+      if (!itemTotals[itemName]) {
+        itemTotals[itemName] = {
+          itemName,
+          totalQuantity: 0,
+          orderCount: 0,
+        };
       }
-      if (!itemSalesTimeSeries[itemName][dateKey]) {
-        itemSalesTimeSeries[itemName][dateKey] = 0;
-      }
-      itemSalesTimeSeries[itemName][dateKey] += item.quantity || 1;
+
+      itemTotals[itemName].totalQuantity += quantity;
+      itemTotals[itemName].orderCount += 1;
     });
   });
 
-  // Calculate trend for each item
-  const forecastedItems = [];
-
-  Object.entries(itemSalesTimeSeries).forEach(([itemName, dateSales]) => {
-    const salesArray = Object.values(dateSales).sort((a, b) => a - b);
-
-    if (salesArray.length < 2) return; // Need at least 2 data points
-
-    const total = salesArray.reduce((a, b) => a + b, 0);
-    const average = total / salesArray.length;
-
-    // Calculate simple moving average (last 7 days vs previous 7 days)
-    const sortedDates = Object.keys(dateSales).sort();
-    const midpoint = Math.floor(sortedDates.length / 2);
-
-    const firstHalfSales = sortedDates
-      .slice(0, midpoint)
-      .reduce((sum, date) => sum + dateSales[date], 0);
-    const secondHalfSales = sortedDates
-      .slice(midpoint)
-      .reduce((sum, date) => sum + dateSales[date], 0);
-
-    const firstHalfAvg = firstHalfSales / midpoint;
-    const secondHalfAvg = secondHalfSales / (sortedDates.length - midpoint);
-
-    // Determine trend
-    let trend = 'stable';
-    let trendPercentage = 0;
-
-    if (secondHalfAvg > firstHalfAvg * 1.15) {
-      trend = 'up';
-      trendPercentage = Math.round(((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100);
-    } else if (secondHalfAvg < firstHalfAvg * 0.85) {
-      trend = 'down';
-      trendPercentage = Math.round(((firstHalfAvg - secondHalfAvg) / firstHalfAvg) * 100);
-    }
-
-    forecastedItems.push({
-      itemName,
-      currentAverageSales: Math.round(average * 100) / 100,
-      forecast: Math.round(secondHalfAvg * 100) / 100,
-      trend,
-      trendPercentage,
-      totalSalesInPeriod: total,
-    });
-  });
-
-  // Sort by forecast (highest predicted sales first)
-  forecastedItems.sort((a, b) => b.forecast - a.forecast);
+  const forecastedItems = Object.values(itemTotals)
+    .sort((a, b) => b.totalQuantity - a.totalQuantity)
+    .slice(0, 10)
+    .map((item) => ({
+      itemName: item.itemName,
+      totalQuantity: item.totalQuantity,
+      orderCount: item.orderCount,
+      forecast: item.totalQuantity,
+      trend: 'stable',
+      trendPercentage: 0,
+    }));
 
   return {
-    forecastedItems: forecastedItems.slice(0, 10), // Top 10 items
+    forecastedItems,
     analysisWindow: `Last ${days} days`,
     generatedAt: new Date().toISOString(),
   };

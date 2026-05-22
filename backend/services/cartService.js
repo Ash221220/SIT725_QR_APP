@@ -146,19 +146,19 @@ async function updateQuantity(sessionId, menuItemId, quantity) {
     throw new AppError('Cart not found', 404, 'CART_NOT_FOUND');
   }
 
-  const itemIndex = cart.items.findIndex(
-    (i) => String(i.menuItemId) === String(menuItemId)
+  const item = cart.items.find(
+    cartItem => cartItem.menuItemId.toString() === menuItemId
   );
 
-  if (itemIndex === -1) {
+  if (!item) {
     throw new AppError('Item not found in cart', 404, 'CART_ITEM_NOT_FOUND');
   }
 
   if (quantity === 0) {
-    cart.items.splice(itemIndex, 1);
+    cart.items.splice(cart.items.indexOf(item), 1);
   } else {
     await resolveOrderableMenuItem(menuItemId, session.restaurantId);
-    cart.items[itemIndex].quantity = quantity;
+    item.quantity = quantity;
   }
 
   cart.subtotal = recalcSubtotal(cart.items);

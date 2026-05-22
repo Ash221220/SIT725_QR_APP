@@ -51,93 +51,10 @@
       </div>
     </div>
 
-    <div class="card full-width-card analytics-card">
-      <div class="card-content">
-        <div class="analytics-header">
-          <span class="card-title">Analytics</span>
-          <div class="analytics-filters">
-            <div class="input-field date-filter">
-              <input id="analyticsFromDate" type="date" />
-              <label for="analyticsFromDate">From</label>
-            </div>
-            <div class="input-field date-filter">
-              <input id="analyticsToDate" type="date" />
-              <label for="analyticsToDate">To</label>
-            </div>
-            <button class="btn teal darken-2" id="refreshAnalyticsBtn">
-              <i class="material-icons left">refresh</i>Refresh
-            </button>
-          </div>
-        </div>
-
-        <div class="analytics-stats row">
-          <div class="col s12 m6 l3">
-            <div class="analytics-stat-card">
-              <div class="stat-label">Total Orders</div>
-              <div class="stat-value" id="analyticsTotalOrders">-</div>
-            </div>
-          </div>
-          <div class="col s12 m6 l3">
-            <div class="analytics-stat-card">
-              <div class="stat-label">Total Revenue</div>
-              <div class="stat-value" id="analyticsTotalRevenue">-</div>
-            </div>
-          </div>
-          <div class="col s12 m6 l3">
-            <div class="analytics-stat-card">
-              <div class="stat-label">Most Ordered Item</div>
-              <div class="stat-value" id="analyticsTopItem">-</div>
-            </div>
-          </div>
-          <div class="col s12 m6 l3">
-            <div class="analytics-stat-card">
-              <div class="stat-label">Busiest Table</div>
-              <div class="stat-value" id="analyticsBusiestTable">-</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="row analytics-detail-row">
-          <div class="col s12 l6">
-            <h6>Peak Hours By Day</h6>
-            <div class="table-responsive">
-              <table class="striped analytics-table">
-                <thead>
-                  <tr>
-                    <th>Day</th>
-                    <th>Top Hours</th>
-                    <th>Confidence</th>
-                  </tr>
-                </thead>
-                <tbody id="analyticsPeakHoursTable">
-                  <tr>
-                    <td colspan="3" class="center-align">Loading peak hours...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="col s12 l6">
-            <h6>Top Forecasted Items</h6>
-            <div class="table-responsive">
-              <table class="striped analytics-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Trend</th>
-                    <th>Forecast</th>
-                  </tr>
-                </thead>
-                <tbody id="analyticsForecastTable">
-                  <tr>
-                    <td colspan="3" class="center-align">Loading forecast...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div class="right-align" style="margin-bottom: 20px;">
+      <a href="analytics.html" class="btn teal darken-2">
+        <i class="material-icons left">analytics</i>View Analytics
+      </a>
     </div>
 
     <div class="card full-width-card">
