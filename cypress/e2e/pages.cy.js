@@ -1,13 +1,25 @@
 /**
  * General Page Load Tests
+ * File: cypress/e2e/pages.cy.js
  *
- * Checks that all frontend pages served by the backend are reachable and do
- * not return errors. Pages that are only placeholders (index.html, menu.html)
- * are noted as such — those tests will surface as needing implementation.
+ * Covers:
+ *   1. All frontend pages served by the Express backend
+ *   2. Static JS assets
  *
- * Prerequisites: cd backend && npm start
+ * Test groups:
+ *   - Root route (GET /)
+ *   - All HTML pages (login, signup, menu, dashboards, admin, owner, analytics)
+ *   - QR menu route (/menu/:restaurantId)
+ *   - Static JS/CSS assets
  *
- * Run:  npm run test:e2e
+ * Notes:
+ *   Pages that are placeholder stubs will surface failing tests intentionally —
+ *   these flag unimplemented pages for the development team.
+ *
+ * Prerequisites:
+ *   1. cd backend && npm start
+ *
+ * Run: npm run test:e2e
  */
 
 // ─── Root route ───────────────────────────────────────────────────────────────
@@ -45,11 +57,25 @@ describe('GET /pages/index.html', () => {
   });
 });
 
-// ─── menu.html ────────────────────────────────────────────────────────────────
+// ─── menu.html (guest) ───────────────────────────────────────────────────────
 
 describe('GET /pages/menu.html', () => {
   it('returns HTTP 200', () => {
     cy.request('/pages/menu.html').its('status').should('equal', 200);
+  });
+
+  it('renders guest menu structure', () => {
+    cy.visit('/pages/menu.html?restaurantId=507f1f77bcf86cd799439011&table=1', {
+      failOnStatusCode: false,
+    });
+    cy.get('#menuContainer').should('exist');
+    cy.get('#menuStatus').should('exist');
+  });
+});
+
+describe('GET /menu/:restaurantId — QR route', () => {
+  it('returns HTTP 200 for menu page', () => {
+    cy.request('/menu/507f1f77bcf86cd799439011?table=1').its('status').should('equal', 200);
   });
 });
 
@@ -81,22 +107,79 @@ describe('GET /pages/owner-dashboard.html', () => {
   });
 });
 
+// ─── owner_signup.html ────────────────────────────────────────────────────────
+
+describe('GET /pages/owner_signup.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/owner_signup.html').its('status').should('equal', 200);
+  });
+
+  it('renders the owner signup form', () => {
+    cy.visit('/pages/owner_signup.html');
+    cy.get('#ownerSignupForm').should('exist');
+    cy.contains('h4', 'Owner Signup').should('be.visible');
+  });
+});
+
+// ─── owner-profile.html ─────────────────────────────────────────────────────
+
+describe('GET /pages/owner-profile.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/owner-profile.html').its('status').should('equal', 200);
+  });
+});
+
+// ─── analytics.html ─────────────────────────────────────────────────────────
+
+describe('GET /pages/analytics.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/analytics.html').its('status').should('equal', 200);
+  });
+});
+
+// ─── Admin pages ────────────────────────────────────────────────────────────
+
+describe('GET /pages/pending_owners.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/pending_owners.html').its('status').should('equal', 200);
+  });
+});
+
+describe('GET /pages/owners.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/owners.html').its('status').should('equal', 200);
+  });
+});
+
+describe('GET /pages/restaurants.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/restaurants.html').its('status').should('equal', 200);
+  });
+});
+
+describe('GET /pages/ind_restaurant.html', () => {
+  it('returns HTTP 200 with query params', () => {
+    cy.request('/pages/ind_restaurant.html?id=rest1&name=Test').its('status').should('equal', 200);
+  });
+});
+
 // ─── Static assets ────────────────────────────────────────────────────────────
 
 describe('Static assets are served correctly', () => {
-  it('config.js is reachable', () => {
-    cy.request('/js/config.js').its('status').should('equal', 200);
-  });
+  const assets = [
+    '/js/config.js',
+    '/js/auth.js',
+    '/js/owner.js',
+    '/js/owner-profile.js',
+    '/js/admin.js',
+    '/js/menu.js',
+    '/js/analytics.js',
+    '/css/style.css',
+  ];
 
-  it('auth.js is reachable', () => {
-    cy.request('/js/auth.js').its('status').should('equal', 200);
-  });
-
-  it('owner.js is reachable', () => {
-    cy.request('/js/owner.js').its('status').should('equal', 200);
-  });
-
-  it('admin.js is reachable', () => {
-    cy.request('/js/admin.js').its('status').should('equal', 200);
+  assets.forEach((asset) => {
+    it(`${asset} is reachable`, () => {
+      cy.request(asset).its('status').should('equal', 200);
+    });
   });
 });

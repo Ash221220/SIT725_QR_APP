@@ -13,6 +13,7 @@
  *   PATCH  /api/menu/my/:itemId/availability
  *   DELETE /api/menu/my/:itemId
  *   GET    /api/menu/:restaurantId   (admin only)
+ *   GET    /api/menu/public/:restaurantId   (guest, no auth)
  */
 
 const request    = require('supertest');
@@ -258,6 +259,18 @@ describe('PATCH /api/menu/my/:itemId/availability — integration', () => {
     expect(res.body.message).to.equal('isAvailable must be a boolean');
   });
 
+  it('returns 404 when the item does not exist', async () => {
+    const { ownerToken } = await seedApprovedOwner('avail404');
+    const fakeId = new mongoose.Types.ObjectId();
+
+    const res = await request(app)
+      .patch(`/api/menu/my/${fakeId}/availability`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ isAvailable: false });
+
+    expect(res.status).to.equal(404);
+  });
+
   it('returns 400 when isAvailable is missing from the request body', async () => {
     const { ownerToken } = await seedApprovedOwner();
     const { body: { item } } = await request(app)
@@ -344,14 +357,128 @@ describe('GET /api/menu/:restaurantId — integration (admin only)', () => {
   });
 
   it('returns 400 when restaurantId is not a valid ObjectId', async () => {
-    const adminLoginRes = await request(app)
-      .post('/api/auth/login')
-      .send({ email: 'admin@system.com', password: 'admin123' });
+    const { token: adminToken } = await seedAdmin();
 
     const res = await request(app)
       .get('/api/menu/not-a-valid-id')
-      .set('Authorization', `Bearer ${adminLoginRes.body.token}`);
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).to.equal(400);
+  });
+});
+
+// ─── GET /api/menu/public/:restaurantId (guest) ───────────────────────────────
+
+describe('GET /api/menu/public/:restaurantId — integration (no auth)', () => {
+  it('returns only available items without a token', async () => {
+    const { ownerToken, restaurantId } = await seedApprovedOwner('publicmenu');
+
+    await request(app)
+      .post('/api/menu/my')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(validItem());
+
+    const unavailableRes = await request(app)
+      .post('/api/menu/my')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ ...validItem(), name: 'Sold Out Soup', isAvailable: false });
+
+    const res = await request(app).get(`/api/menu/public/${restaurantId}`);
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.menu).to.be.an('array').with.lengthOf(1);
+    expect(res.body.menu[0].name).to.equal('Margherita Pizza');
+    expect(res.body.menu.every((item) => item.isAvailable === true)).to.equal(true);
+    expect(res.body.menu.some((item) => item._id === unavailableRes.body.item._id)).to.equal(false);
+  });
+
+  it('returns 400 when restaurantId is not a valid ObjectId', async () => {
+    const res = await request(app).get('/api/menu/public/not-a-valid-id');
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 404 when restaurant does not exist', async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+    const res = await request(app).get(`/api/menu/public/${fakeId}`);
+    expect(res.status).to.equal(404);
+  });
+
+  it('returns 404 when restaurant is inactive', async () => {
+    const { ownerToken, restaurantId } = await seedApprovedOwner('inactivepublic');
+
+    await request(app)
+      .put('/api/restaurants/my')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'Inactive Bistro' });
+
+    const Restaurant = require('../../backend/models/Restaurant');
+    await Restaurant.updateOne({ _id: restaurantId }, { isActive: false });
+
+    const res = await request(app).get(`/api/menu/public/${restaurantId}`);
+    expect(res.status).to.equal(404);
+  });
+});
+
+// ─── POST /api/menu/my/images & GET /api/menu/images/:id — integration ───────
+
+describe('Menu image upload — integration', () => {
+  it('uploads an image and returns imageUrl', async () => {
+    const { ownerToken } = await seedApprovedOwner('imgupload');
+
+    const res = await request(app)
+      .post('/api/menu/my/images')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .attach('image', Buffer.from('fake-png-content'), {
+        filename: 'test.png',
+        contentType: 'image/png',
+      });
+
+    expect(res.status).to.equal(201);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.imageFileId).to.exist;
+    expect(res.body.imageUrl).to.include('/api/menu/images/');
+  });
+
+  it('returns 400 when no image file is uploaded', async () => {
+    const { ownerToken } = await seedApprovedOwner('imgmissing');
+
+    const res = await request(app)
+      .post('/api/menu/my/images')
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('Image file is required');
+  });
+
+  it('returns image bytes for a valid uploaded image id', async () => {
+    const { ownerToken } = await seedApprovedOwner('imgget');
+
+    const uploadRes = await request(app)
+      .post('/api/menu/my/images')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .attach('image', Buffer.from('fake-png-content'), {
+        filename: 'menu.png',
+        contentType: 'image/png',
+      });
+
+    const imageId = uploadRes.body.imageFileId;
+    const getRes = await request(app).get(`/api/menu/images/${imageId}`);
+
+    expect(getRes.status).to.equal(200);
+    expect(getRes.headers['content-type']).to.include('image');
+  });
+
+  it('returns 400 for malformed image id', async () => {
+    const res = await request(app).get('/api/menu/images/not-a-valid-id');
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('Invalid image id');
+  });
+
+  it('returns 404 when image id does not exist', async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+    const res = await request(app).get(`/api/menu/images/${fakeId}`);
+    expect(res.status).to.equal(404);
+    expect(res.body.message).to.equal('Image not found');
   });
 });

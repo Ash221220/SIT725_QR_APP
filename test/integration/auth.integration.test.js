@@ -8,6 +8,9 @@
  * Endpoints covered:
  *   POST /api/auth/register
  *   POST /api/auth/login
+ *   GET  /api/auth/me
+ *   PUT  /api/auth/me
+ *   PUT  /api/auth/me/password
  */
 
 const request  = require('supertest');
@@ -185,5 +188,159 @@ describe('POST /api/auth/login — integration', () => {
 
     expect(res.status).to.equal(200);
     expect(res.body).to.have.property('token');
+  });
+});
+
+// ─── Helpers: approved owner with token ───────────────────────────────────────
+
+async function seedApprovedOwner(suffix = 'profile') {
+  await seedAdmin();
+
+  const payload = validOwnerPayload(suffix);
+  const regRes = await request(app)
+    .post('/api/auth/register')
+    .send(payload);
+
+  const ownerId = regRes.body.user._id;
+  await User.updateOne({ email: payload.email }, { status: 'approved' });
+
+  const loginRes = await request(app)
+    .post('/api/auth/login')
+    .send({ email: payload.email, password: 'password123' });
+
+  return {
+    ownerToken: loginRes.body.token,
+    ownerEmail: payload.email,
+    userId: ownerId,
+  };
+}
+
+// ─── GET /api/auth/me — integration ───────────────────────────────────────────
+
+describe('GET /api/auth/me — integration', () => {
+  it('returns the authenticated user profile', async () => {
+    const { ownerToken, ownerEmail } = await seedApprovedOwner('getme');
+
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.user.email).to.equal(ownerEmail);
+    expect(res.body.user).not.to.have.property('password');
+  });
+
+  it('returns 401 with no token', async () => {
+    const res = await request(app).get('/api/auth/me');
+    expect(res.status).to.equal(401);
+  });
+});
+
+// ─── PUT /api/auth/me — integration ───────────────────────────────────────────
+
+describe('PUT /api/auth/me — integration', () => {
+  it('updates the user name and persists the change', async () => {
+    const { ownerToken } = await seedApprovedOwner('updateme');
+
+    const res = await request(app)
+      .put('/api/auth/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'Updated Owner Name' });
+
+    expect(res.status).to.equal(200);
+    expect(res.body.user.name).to.equal('Updated Owner Name');
+
+    const getRes = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(getRes.body.user.name).to.equal('Updated Owner Name');
+  });
+
+  it('returns 400 when no update fields are provided', async () => {
+    const { ownerToken } = await seedApprovedOwner('updateempty');
+
+    const res = await request(app)
+      .put('/api/auth/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({});
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('Nothing to update');
+  });
+
+  it('returns 409 when email is already taken by another user', async () => {
+    await seedAdmin();
+    const existingPayload = validOwnerPayload('existing');
+    const conflictPayload = validOwnerPayload('updateconflict');
+
+    await request(app).post('/api/auth/register').send(existingPayload);
+    await request(app).post('/api/auth/register').send(conflictPayload);
+    await User.updateOne({ email: conflictPayload.email }, { status: 'approved' });
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: conflictPayload.email, password: 'password123' });
+
+    const res = await request(app)
+      .put('/api/auth/me')
+      .set('Authorization', `Bearer ${loginRes.body.token}`)
+      .send({ email: existingPayload.email });
+
+    expect(res.status).to.equal(409);
+    expect(res.body.message).to.equal('Email already in use');
+  });
+});
+
+// ─── PUT /api/auth/me/password — integration ──────────────────────────────────
+
+describe('PUT /api/auth/me/password — integration', () => {
+  it('changes the password and allows login with the new password', async () => {
+    const suffix = 'changepass';
+    const { ownerToken, ownerEmail } = await seedApprovedOwner(suffix);
+
+    const res = await request(app)
+      .put('/api/auth/me/password')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ currentPassword: 'password123', newPassword: 'newpassword456' });
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+
+    const oldLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: ownerEmail, password: 'password123' });
+    expect(oldLogin.status).to.equal(401);
+
+    const newLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: ownerEmail, password: 'newpassword456' });
+    expect(newLogin.status).to.equal(200);
+    expect(newLogin.body).to.have.property('token');
+  });
+
+  it('returns 400 when current password is wrong', async () => {
+    const { ownerToken } = await seedApprovedOwner('wrongpass');
+
+    const res = await request(app)
+      .put('/api/auth/me/password')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ currentPassword: 'wrongpassword', newPassword: 'newpassword456' });
+
+    expect(res.status).to.equal(401);
+    expect(res.body.message).to.equal('Current password is incorrect');
+  });
+
+  it('returns 400 when new password is too short', async () => {
+    const { ownerToken } = await seedApprovedOwner('shortpass');
+
+    const res = await request(app)
+      .put('/api/auth/me/password')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ currentPassword: 'password123', newPassword: '12345' });
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('New password must be at least 6 characters');
   });
 });
