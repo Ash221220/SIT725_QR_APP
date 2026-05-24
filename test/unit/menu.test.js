@@ -13,6 +13,8 @@
  *   DELETE /api/menu/my/:itemId
  *   GET    /api/menu/:restaurantId  (admin only)
  *   GET    /api/menu/public/:restaurantId  (guest, no auth)
+ *   POST   /api/menu/my/images
+ *   GET    /api/menu/images/:imageFileId
  */
 
 // Set env vars before any module is required
@@ -532,5 +534,44 @@ describe('GET /api/menu/public/:restaurantId', () => {
 
     expect(res.status).to.equal(404);
     expect(res.body.message).to.equal('Restaurant not found');
+  });
+});
+
+// ─── POST /api/menu/my/images ─────────────────────────────────────────────────
+
+describe('POST /api/menu/my/images', () => {
+  afterEach(() => sinon.restore());
+
+  it('should return 401 with no token', async () => {
+    const res = await request(app)
+      .post('/api/menu/my/images')
+      .attach('image', Buffer.from('fake'), { filename: 'test.png', contentType: 'image/png' });
+
+    expect(res.status).to.equal(401);
+    expect(res.body.success).to.equal(false);
+  });
+
+  it('should return 400 when no image file is provided', async () => {
+    stubOwnerAuth();
+
+    const res = await request(app)
+      .post('/api/menu/my/images')
+      .set('Authorization', `Bearer ${makeOwnerToken()}`);
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('Image file is required');
+  });
+});
+
+// ─── GET /api/menu/images/:imageFileId ────────────────────────────────────────
+
+describe('GET /api/menu/images/:imageFileId', () => {
+  afterEach(() => sinon.restore());
+
+  it('should return 400 for a malformed image id', async () => {
+    const res = await request(app).get('/api/menu/images/not-a-valid-id');
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('Invalid image id');
   });
 });

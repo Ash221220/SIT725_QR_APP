@@ -75,6 +75,20 @@ describe('Login page — structure', () => {
   it('has an empty status message container on load', () => {
     cy.get('#loginMessage').should('exist').and('be.empty');
   });
+
+  it('shows a link to the owner signup page', () => {
+    cy.contains('a', 'Sign Up')
+      .should('have.attr', 'href')
+      .and('include', 'owner_signup.html');
+  });
+});
+
+describe('Login page — navigation', () => {
+  it('navigates to owner signup when Sign Up is clicked', () => {
+    cy.visit(LOGIN_URL);
+    cy.contains('a', 'Sign Up').click();
+    cy.url().should('include', 'owner_signup.html');
+  });
 });
 
 // ─── 2. Form validation ───────────────────────────────────────────────────────

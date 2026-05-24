@@ -129,6 +129,26 @@ describe('POST /api/sessions/start — integration', () => {
 
     expect(res.status).to.equal(404);
   });
+
+  it('returns 400 when restaurantId is missing', async () => {
+    const res = await request(app)
+      .post('/api/sessions/start')
+      .send({ tableNumber: 1 });
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('restaurantId and tableNumber are required');
+  });
+
+  it('returns 400 when tableNumber is missing', async () => {
+    const { restaurantId } = await seedApprovedOwnerWithTables('sessmissingtable');
+
+    const res = await request(app)
+      .post('/api/sessions/start')
+      .send({ restaurantId });
+
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('restaurantId and tableNumber are required');
+  });
 });
 
 describe('GET /api/sessions/active — integration', () => {
@@ -146,6 +166,22 @@ describe('GET /api/sessions/active — integration', () => {
     expect(res.status).to.equal(200);
     expect(res.body.session.tableNumber).to.equal(4);
     expect(res.body.session.status).to.equal('active');
+  });
+
+  it('returns 400 when query params are missing', async () => {
+    const res = await request(app).get('/api/sessions/active');
+    expect(res.status).to.equal(400);
+    expect(res.body.message).to.equal('restaurantId and tableNumber query params are required');
+  });
+
+  it('returns 404 when no active session exists for table', async () => {
+    const { restaurantId } = await seedApprovedOwnerWithTables('sessnoactive');
+
+    const res = await request(app)
+      .get('/api/sessions/active')
+      .query({ restaurantId, tableNumber: 1 });
+
+    expect(res.status).to.equal(404);
   });
 });
 
@@ -184,6 +220,19 @@ describe('PATCH /api/sessions/:sessionId/close — integration', () => {
       .set('Authorization', `Bearer ${ownerToken}`);
 
     expect(res.status).to.equal(400);
+  });
+
+  it('returns 401 when closing session without auth token', async () => {
+    const { restaurantId } = await seedApprovedOwnerWithTables('sessnoauth');
+
+    const startRes = await request(app)
+      .post('/api/sessions/start')
+      .send({ restaurantId, tableNumber: 2 });
+
+    const res = await request(app)
+      .patch(`/api/sessions/${startRes.body.session._id}/close`);
+
+    expect(res.status).to.equal(401);
   });
 });
 

@@ -27,6 +27,14 @@ const SIGNUP_URL = '/pages/owner_signup.html';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
+/** Materialize labels can block Cypress; never .type('') — Cypress rejects empty strings */
+function fillSignupField(selector, value) {
+  cy.get(selector).click({ force: true }).clear({ force: true });
+  if (value !== '') {
+    cy.get(selector).type(value, { force: true });
+  }
+}
+
 function fillSignupForm(overrides = {}) {
   const data = {
     name: 'Test Owner',
@@ -39,13 +47,17 @@ function fillSignupForm(overrides = {}) {
     ...overrides,
   };
 
-  if (data.name)            cy.get('#name').type(data.name);
-  if (data.email)           cy.get('#email').type(data.email);
-  if (data.password)        cy.get('#password').type(data.password);
-  if (data.restaurantName)  cy.get('#pendingRestaurantName').type(data.restaurantName);
-  if (data.restaurantAddress) cy.get('#pendingRestaurantAddress').type(data.restaurantAddress);
-  if (data.restaurantPhone) cy.get('#pendingRestaurantPhone').type(data.restaurantPhone);
-  if (data.restaurantEmail) cy.get('#pendingRestaurantEmail').type(data.restaurantEmail);
+  if (data.name !== undefined) fillSignupField('#name', data.name);
+  if (data.email !== undefined) fillSignupField('#email', data.email);
+  if (data.password !== undefined) fillSignupField('#password', data.password);
+  if (data.restaurantName !== undefined) fillSignupField('#pendingRestaurantName', data.restaurantName);
+  if (data.restaurantAddress !== undefined) fillSignupField('#pendingRestaurantAddress', data.restaurantAddress);
+  if (data.restaurantPhone !== undefined) fillSignupField('#pendingRestaurantPhone', data.restaurantPhone);
+  if (data.restaurantEmail !== undefined) fillSignupField('#pendingRestaurantEmail', data.restaurantEmail);
+}
+
+function submitSignupForm() {
+  cy.get('#ownerSignupForm button[type="submit"]').click();
 }
 
 // ─── 5a. Page structure ───────────────────────────────────────────────────────
@@ -54,54 +66,73 @@ describe('Owner signup — page structure', () => {
   beforeEach(() => cy.visit(SIGNUP_URL));
 
   it('has the correct page title', () => {
-    // TODO: cy.title().should('include', 'Owner Signup');
+    cy.title().should('include', 'Owner Signup');
   });
 
   it('shows the "Owner Signup" heading', () => {
-    // TODO: cy.contains('h4', 'Owner Signup').should('be.visible');
+    cy.contains('h4', 'Owner Signup').should('be.visible');
   });
 
   it('shows all required input fields', () => {
-    // TODO: check #name, #email, #password, #pendingRestaurantName,
-    //       #pendingRestaurantAddress, #pendingRestaurantPhone, #pendingRestaurantEmail exist
+    cy.get('#name').should('exist');
+    cy.get('#email').should('exist');
+    cy.get('#password').should('exist');
+    cy.get('#pendingRestaurantName').should('exist');
+    cy.get('#pendingRestaurantAddress').should('exist');
+    cy.get('#pendingRestaurantPhone').should('exist');
+    cy.get('#pendingRestaurantEmail').should('exist');
   });
 
   it('shows the Submit Request button', () => {
-    // TODO: cy.get('button[type="submit"]').should('contain.text', 'Submit Request');
+    cy.get('button[type="submit"]').should('contain.text', 'Submit Request');
   });
 
   it('shows a link back to login page', () => {
-    // TODO: cy.contains('a', 'Login here').should('have.attr', 'href').and('include', 'login.html');
+    cy.contains('a', 'Login here').should('have.attr', 'href').and('include', 'login.html');
   });
 });
 
 // ─── 5b. Form validation — required fields ────────────────────────────────────
 
 describe('Owner signup — form validation', () => {
-  beforeEach(() => cy.visit(SIGNUP_URL));
+  beforeEach(() => {
+    cy.intercept('POST', '/api/auth/register').as('registerRequest');
+    cy.visit(SIGNUP_URL);
+  });
 
   it('does not submit when all fields are empty', () => {
-    // TODO: click submit, assert API not called (no @registerRequest alias)
+    submitSignupForm();
+    cy.get('@registerRequest.all').should('have.length', 0);
   });
 
   it('does not submit when owner name is missing', () => {
-    // TODO: fill all except name, submit, assert API not called
+    fillSignupForm({ name: '' });
+    submitSignupForm();
+    cy.get('@registerRequest.all').should('have.length', 0);
   });
 
   it('does not submit when email is invalid format', () => {
-    // TODO: fill with email 'notanemail', submit, assert API not called
+    fillSignupForm({ email: 'notanemail' });
+    submitSignupForm();
+    cy.get('@registerRequest.all').should('have.length', 0);
   });
 
   it('does not submit when password is missing', () => {
-    // TODO: fill all except password, submit, assert API not called
+    fillSignupForm({ password: '' });
+    submitSignupForm();
+    cy.get('@registerRequest.all').should('have.length', 0);
   });
 
   it('does not submit when restaurant name is missing', () => {
-    // TODO: fill all except restaurantName, submit, assert API not called
+    fillSignupForm({ restaurantName: '' });
+    submitSignupForm();
+    cy.get('@registerRequest.all').should('have.length', 0);
   });
 
   it('does not submit when restaurant address is missing', () => {
-    // TODO: fill all except restaurantAddress, submit, assert API not called
+    fillSignupForm({ restaurantAddress: '' });
+    submitSignupForm();
+    cy.get('@registerRequest.all').should('have.length', 0);
   });
 });
 
@@ -115,12 +146,33 @@ describe('Owner signup — successful registration', () => {
       body: { success: true, message: 'Registration request submitted' },
     }).as('registerRequest');
 
-    // TODO: fillSignupForm(), click submit, cy.wait('@registerRequest'),
-    //       assert body contains name, email, pendingRestaurantName etc.
+    fillSignupForm();
+    submitSignupForm();
+
+    cy.wait('@registerRequest').then((interception) => {
+      const body = interception.request.body;
+      expect(body.name).to.equal('Test Owner');
+      expect(body.email).to.equal('newowner@test.com');
+      expect(body.password).to.equal('password123');
+      expect(body.pendingRestaurantName).to.equal('Test Bistro');
+      expect(body.pendingRestaurantAddress).to.equal('42 Collins St');
+      expect(body.pendingRestaurantPhone).to.equal('0312345678');
+      expect(body.pendingRestaurantEmail).to.equal('bistro@test.com');
+    });
   });
 
   it('shows a success message after submission', () => {
-    // TODO: intercept 201, submit form, assert #signupMessage contains success text
+    cy.visit(SIGNUP_URL);
+    cy.intercept('POST', '/api/auth/register', {
+      statusCode: 201,
+      body: { success: true, message: 'Registration request submitted' },
+    }).as('registerRequest');
+
+    fillSignupForm();
+    submitSignupForm();
+    cy.wait('@registerRequest');
+
+    cy.get('#signupMessage').should('contain.text', 'Signup request submitted');
   });
 });
 
@@ -134,12 +186,25 @@ describe('Owner signup — error handling', () => {
       body: { success: false, message: 'Email already registered' },
     }).as('registerRequest');
 
-    // TODO: fillSignupForm(), submit, cy.wait('@registerRequest'),
-    //       assert #signupMessage contains 'Email already registered'
+    fillSignupForm();
+    submitSignupForm();
+    cy.wait('@registerRequest');
+
+    cy.get('#signupMessage').should('contain.text', 'Email already registered');
   });
 
   it('shows an error message for server errors (500)', () => {
-    // TODO: intercept 500, submit, assert error message shown
+    cy.visit(SIGNUP_URL);
+    cy.intercept('POST', '/api/auth/register', {
+      statusCode: 500,
+      body: { success: false, message: 'Internal Server Error' },
+    }).as('registerRequest');
+
+    fillSignupForm();
+    submitSignupForm();
+    cy.wait('@registerRequest');
+
+    cy.get('#signupMessage').should('contain.text', 'Internal Server Error');
   });
 });
 
@@ -148,6 +213,7 @@ describe('Owner signup — error handling', () => {
 describe('Owner signup — navigation', () => {
   it('navigates to login page when "Login here" link is clicked', () => {
     cy.visit(SIGNUP_URL);
-    // TODO: cy.contains('a', 'Login here').click(), assert URL includes login.html
+    cy.contains('a', 'Login here').click();
+    cy.url().should('include', 'login.html');
   });
 });

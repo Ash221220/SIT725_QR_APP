@@ -20,6 +20,8 @@
  *   All API calls are stubbed — tests do not require a running backend.
  *   Stubs must be registered BEFORE cy.visit() as admin.js fires API
  *   calls immediately on DOMContentLoaded.
+ *   Previously split across restaurant.cy.js (basic suite) and this file —
+ *   merged into one complete spec.
  *
  * Prerequisites:
  *   1. cd backend && npm start
@@ -58,17 +60,27 @@ const FAKE_RESTAURANTS = [
 
 describe('Restaurants page — authentication guard', () => {
   it('redirects to login.html when no token is stored', () => {
-    // TODO: cy.visit(PAGE_URL), assert URL includes login.html
+    cy.visit(PAGE_URL);
+    cy.url().should('include', 'login.html');
   });
 
   it('redirects to login.html when user is an owner', () => {
-    // TODO: visit with owner role, assert redirect
+    cy.visit(PAGE_URL, {
+      onBeforeLoad(win) {
+        win.localStorage.setItem('token', 'fake.owner.jwt');
+        win.localStorage.setItem('user', JSON.stringify({
+          _id: 'owner1', name: 'Owner', email: 'owner@test.com', role: 'owner',
+        }));
+      },
+    });
+    cy.url().should('include', 'login.html');
   });
 
   it('loads the page when role is super_admin', () => {
     stubRestaurants();
     visitAsAdmin();
-    // TODO: cy.wait('@getRestaurants'), assert URL includes restaurants.html
+    cy.wait('@getRestaurants');
+    cy.url().should('include', 'restaurants.html');
   });
 });
 
@@ -82,19 +94,19 @@ describe('Restaurants page — page structure', () => {
   });
 
   it('shows the "Restaurants" heading', () => {
-    // TODO: cy.get('h4').should('contain.text', 'Restaurants');
+    cy.get('h4').should('contain.text', 'Restaurants');
   });
 
-  it('shows table headers: Name, Address, Active, Total Tables', () => {
-    // TODO: check th cells
+  it('shows the restaurants table', () => {
+    cy.get('#restaurantsTable').should('exist');
   });
 
   it('shows the search input', () => {
-    // TODO: cy.get('#restaurantSearch').should('exist');
+    cy.get('#restaurantSearch').should('exist');
   });
 
   it('shows the restaurant count summary card', () => {
-    // TODO: cy.get('#restaurantCount').should('exist');
+    cy.get('#restaurantCount').should('exist');
   });
 });
 
@@ -105,22 +117,30 @@ describe('Restaurants page — table content', () => {
     stubRestaurants(FAKE_RESTAURANTS);
     visitAsAdmin();
     cy.wait('@getRestaurants');
-    // TODO: cy.get('#restaurantsTable tr').should('have.length', 2);
+    cy.get('#restaurantsTable tr').should('have.length', 2);
   });
 
-  it('shows restaurant name, address, active status and table count', () => {
+  it('shows restaurant name, address and active status in each row', () => {
     stubRestaurants(FAKE_RESTAURANTS);
     visitAsAdmin();
     cy.wait('@getRestaurants');
-    // TODO: assert 'Pizza Palace', '1 Main St', 'Yes', '5' in first row
-    //       assert 'No' in second row
+    cy.get('#restaurantsTable').should('contain.text', 'Pizza Palace');
+    cy.get('#restaurantsTable').should('contain.text', '1 Main St');
+    cy.get('#restaurantsTable').should('contain.text', 'Yes');
+  });
+
+  it('shows inactive status for restaurants that are not active', () => {
+    stubRestaurants(FAKE_RESTAURANTS);
+    visitAsAdmin();
+    cy.wait('@getRestaurants');
+    cy.get('#restaurantsTable').should('contain.text', 'No');
   });
 
   it('shows "No restaurants found" when list is empty', () => {
     stubRestaurants([]);
     visitAsAdmin();
     cy.wait('@getRestaurants');
-    // TODO: cy.get('#restaurantsTable').should('contain.text', 'No restaurants found');
+    cy.get('#restaurantsTable').should('contain.text', 'No restaurants found');
   });
 });
 
@@ -131,20 +151,29 @@ describe('Restaurants page — count card', () => {
     stubRestaurants(FAKE_RESTAURANTS);
     visitAsAdmin();
     cy.wait('@getRestaurants');
-    // TODO: cy.get('#restaurantCount').should('have.text', '2');
+    cy.get('#restaurantCount').should('have.text', '2');
+  });
+
+  it('shows 0 when there are no restaurants', () => {
+    stubRestaurants([]);
+    visitAsAdmin();
+    cy.wait('@getRestaurants');
+    cy.get('#restaurantCount').should('have.text', '0');
   });
 });
 
 // ─── 8e. Row click navigates to individual restaurant page ────────────────────
 
 describe('Restaurants page — row navigation', () => {
-  it('navigates to ind_restaurant.html with correct id when a row is clicked', () => {
+  it('navigates to ind_restaurant.html with the correct id when a row is clicked', () => {
     stubRestaurants(FAKE_RESTAURANTS);
     visitAsAdmin();
     cy.wait('@getRestaurants');
-    // TODO: cy.get('#restaurantsTable tr').first().click();
-    //       cy.url().should('include', 'ind_restaurant.html')
-    //               .and('include', 'rest1');
+
+    cy.get('#restaurantsTable tr').first().click();
+    cy.url()
+      .should('include', 'ind_restaurant.html')
+      .and('include', 'rest1');
   });
 });
 
@@ -156,17 +185,40 @@ describe('Restaurants page — search', () => {
     visitAsAdmin();
     cy.wait('@getRestaurants');
     cy.get('#restaurantsTable tr').should('have.length', 2);
-    // TODO: cy.get('#restaurantSearch').type('Pizza');
-    //       cy.get('#restaurantsTable tr').should('have.length', 1);
-    //       cy.get('#restaurantsTable').should('contain.text', 'Pizza Palace');
+
+    cy.get('#restaurantSearch').clear().type('Pizza');
+    cy.get('#restaurantsTable tr').should('have.length', 1);
+    cy.get('#restaurantsTable').should('contain.text', 'Pizza Palace');
+    cy.get('#restaurantsTable').should('not.contain.text', 'Burger Barn');
+  });
+
+  it('updates the restaurant count card after filtering', () => {
+    stubRestaurants(FAKE_RESTAURANTS);
+    visitAsAdmin();
+    cy.wait('@getRestaurants');
+
+    cy.get('#restaurantSearch').clear().type('Pizza');
+    cy.get('#restaurantCount').should('have.text', '1');
   });
 
   it('shows "No restaurants found" when search matches nothing', () => {
     stubRestaurants(FAKE_RESTAURANTS);
     visitAsAdmin();
     cy.wait('@getRestaurants');
-    // TODO: cy.get('#restaurantSearch').type('xyzzy');
-    //       cy.get('#restaurantsTable').should('contain.text', 'No restaurants found');
+
+    cy.get('#restaurantSearch').clear().type('xyzzy_nonexistent');
+    cy.get('#restaurantsTable').should('contain.text', 'No restaurants found');
+  });
+
+  it('restores all rows when search box is cleared', () => {
+    stubRestaurants(FAKE_RESTAURANTS);
+    visitAsAdmin();
+    cy.wait('@getRestaurants');
+
+    cy.get('#restaurantSearch').clear().type('Pizza');
+    cy.get('#restaurantsTable tr').should('have.length', 1);
+    cy.get('#restaurantSearch').clear();
+    cy.get('#restaurantsTable tr').should('have.length', 2);
   });
 });
 
@@ -180,7 +232,17 @@ describe('Restaurants page — API errors', () => {
     }).as('getRestaurants');
     visitAsAdmin();
     cy.wait('@getRestaurants');
-    // TODO: cy.get('#restaurantsTable').should('contain.text', 'Unauthorized');
+    cy.get('#restaurantsTable').should('contain.text', 'Unauthorized');
+  });
+
+  it('shows an error message when GET /admin/restaurants returns 500', () => {
+    cy.intercept('GET', '/api/admin/restaurants', {
+      statusCode: 500,
+      body: { message: 'Internal Server Error' },
+    }).as('getRestaurantsError');
+    visitAsAdmin();
+    cy.wait('@getRestaurantsError');
+    cy.get('#restaurantsTable').should('not.be.empty');
   });
 });
 
@@ -190,8 +252,13 @@ describe('Restaurants page — logout', () => {
   it('clears localStorage and redirects to login.html on logout', () => {
     stubRestaurants();
     visitAsAdmin();
-    // TODO: cy.get('#logoutDropdownBtn').click({ force: true });
-    //       cy.url().should('include', 'login.html');
-    //       assert localStorage cleared
+    cy.wait('@getRestaurants');
+
+    cy.get('#logoutDropdownBtn').click({ force: true });
+    cy.url().should('include', 'login.html');
+    cy.window().then((win) => {
+      expect(win.localStorage.getItem('token')).to.be.null;
+      expect(win.localStorage.getItem('user')).to.be.null;
+    });
   });
 });

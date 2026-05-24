@@ -7,6 +7,9 @@
  *   3. cd backend && npm start
  *   4. node test/validation-tests.js
  *
+ * Extended coverage: T51–T94 (auth profile, restaurant, public menu,
+ * images, sessions, cart, orders, analytics).
+ *
  * PREREQUISITE: seed:admin must have run at least once.
  *   Seeded credentials:
  *     Admin:  admin@system.com  / admin123
@@ -25,6 +28,11 @@ const BASE_URL  = process.env.BASE_URL || 'http://localhost:5001';
 const AUTH_BASE  = '/api/auth';
 const MENU_BASE  = '/api/menu';
 const ADMIN_BASE = '/api/admin';
+const RESTAURANT_BASE = '/api/restaurants';
+const SESSION_BASE = '/api/sessions';
+const CART_BASE = '/api/cart';
+const ORDER_BASE = '/api/orders';
+const ANALYTICS_BASE = '/api/analytics';
 
 // =============================
 // INTERNAL STATE (DO NOT MODIFY)
@@ -101,6 +109,31 @@ async function http(method, path, body, token) {
   });
   const text = await res.text();
   return { status: res.status, text };
+}
+
+/** Multipart upload helper (menu images). Uses same TEST| output via testMultipart(). */
+async function testMultipart({ id, name, path, expected, token, fieldName, buffer, filename, mimeType, tags }) {
+  const form = new FormData();
+  form.append(fieldName, new Blob([buffer], { type: mimeType }), filename);
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: form });
+  const text = await res.text();
+  const pass = res.status === expected;
+
+  const result = { id, name, method: 'POST', path, expected, actual: res.status, pass };
+  results.push(result);
+  logResult(result);
+
+  const safeTags = Array.isArray(tags) ? tags : [];
+  safeTags.forEach(tag => {
+    if (Object.prototype.hasOwnProperty.call(coverageTracker, tag)) {
+      coverageTracker[tag]++;
+    }
+  });
+
+  try { return JSON.parse(text); } catch { return {}; }
 }
 
 // =============================
@@ -829,6 +862,533 @@ async function run() {
     token:    adminToken,
     tags:     [],
   });
+
+  // IDs shared across extended validation tests (T51+)
+  let guestMenuItemId = null;
+  let guestSessionId = null;
+  let guestOrderId = null;
+  let uploadedImageId = null;
+
+  // =============================
+  // AUTH PROFILE (T51–T56)
+  // =============================
+
+  await test({
+    id:       'T51',
+    name:     'Owner gets own profile',
+    method:   'GET',
+    path:     `${AUTH_BASE}/me`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T52',
+    name:     'Get profile without token',
+    method:   'GET',
+    path:     `${AUTH_BASE}/me`,
+    expected: 401,
+    tags:     ['UNAUTHORIZED'],
+  });
+
+  await test({
+    id:       'T53',
+    name:     'Owner updates profile name',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me`,
+    expected: 200,
+    body:     { name: 'Seeded Owner Updated' },
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T54',
+    name:     'Update profile with no fields',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me`,
+    expected: 400,
+    body:     {},
+    token:    ownerToken,
+    tags:     ['REQUIRED'],
+  });
+
+  await test({
+    id:       'T55',
+    name:     'Change password with wrong current password',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me/password`,
+    expected: 401,
+    body:     { currentPassword: 'wrongpassword', newPassword: 'newpass123' },
+    token:    ownerToken,
+    tags:     ['AUTH_FAIL'],
+  });
+
+  await test({
+    id:       'T56',
+    name:     'Change password with password too short',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me/password`,
+    expected: 400,
+    body:     { currentPassword: 'owner123', newPassword: '12345' },
+    token:    ownerToken,
+    tags:     ['AUTH_FAIL', 'BOUNDARY'],
+  });
+
+  // =============================
+  // RESTAURANT (T57–T60)
+  // =============================
+
+  await test({
+    id:       'T57',
+    name:     'Owner gets linked restaurant',
+    method:   'GET',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T58',
+    name:     'Owner updates restaurant phone',
+    method:   'PUT',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 200,
+    body:     { phone: '0399998888' },
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T59',
+    name:     'Update restaurant with no fields',
+    method:   'PUT',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 400,
+    body:     {},
+    token:    ownerToken,
+    tags:     ['REQUIRED'],
+  });
+
+  await test({
+    id:       'T60',
+    name:     'Get restaurant without token',
+    method:   'GET',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 401,
+    tags:     ['UNAUTHORIZED'],
+  });
+
+  // =============================
+  // PUBLIC MENU (T61–T63)
+  // =============================
+
+  await test({
+    id:       'T61',
+    name:     'Guest gets public menu by restaurantId',
+    method:   'GET',
+    path:     `${MENU_BASE}/public/${ownerRestaurantId}`,
+    expected: 200,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T62',
+    name:     'Public menu with malformed restaurantId',
+    method:   'GET',
+    path:     `${MENU_BASE}/public/not-a-valid-id`,
+    expected: 400,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  await test({
+    id:       'T63',
+    name:     'Public menu for non-existent restaurant',
+    method:   'GET',
+    path:     `${MENU_BASE}/public/507f1f77bcf86cd799439099`,
+    expected: 404,
+    tags:     ['MENU_FAIL', 'NOT_FOUND'],
+  });
+
+  // =============================
+  // MENU ITEM FOR GUEST FLOW (T64)
+  // =============================
+
+  {
+    const resp = await test({
+      id:       'T64',
+      name:     'Owner creates menu item for guest cart flow',
+      method:   'POST',
+      path:     `${MENU_BASE}/my`,
+      expected: 201,
+      body:     {
+        name:        'Validation Burger',
+        category:    'Mains',
+        description: 'Item used for cart and order validation tests.',
+        price:       14.5,
+        isAvailable: true,
+      },
+      token:    ownerToken,
+      tags:     [],
+    });
+    guestMenuItemId = resp?.item?._id ?? null;
+  }
+
+  // =============================
+  // MENU IMAGES (T65–T67)
+  // =============================
+
+  await test({
+    id:       'T65',
+    name:     'Upload menu image without file',
+    method:   'POST',
+    path:     `${MENU_BASE}/my/images`,
+    expected: 400,
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'REQUIRED'],
+  });
+
+  {
+    const resp = await testMultipart({
+      id:       'T66',
+      name:     'Owner uploads menu image',
+      path:     `${MENU_BASE}/my/images`,
+      expected: 201,
+      token:    ownerToken,
+      fieldName: 'image',
+      buffer:   Buffer.from('fake-png-validation'),
+      filename: 'validation-test.png',
+      mimeType: 'image/png',
+      tags:     [],
+    });
+    uploadedImageId = resp?.imageFileId ?? null;
+  }
+
+  if (uploadedImageId) {
+    await test({
+      id:       'T67',
+      name:     'Get uploaded menu image by id',
+      method:   'GET',
+      path:     `${MENU_BASE}/images/${uploadedImageId}`,
+      expected: 200,
+      tags:     [],
+    });
+  } else {
+    await test({
+      id:       'T67',
+      name:     'Get uploaded menu image by id',
+      method:   'GET',
+      path:     `${MENU_BASE}/images/507f1f77bcf86cd799439088`,
+      expected: 404,
+      tags:     ['MENU_FAIL', 'NOT_FOUND'],
+    });
+  }
+
+  await test({
+    id:       'T68',
+    name:     'Get menu image with malformed id',
+    method:   'GET',
+    path:     `${MENU_BASE}/images/not-a-valid-id`,
+    expected: 400,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  // =============================
+  // SESSIONS (T69–T74)
+  // =============================
+
+  {
+    const resp = await test({
+      id:       'T69',
+      name:     'Guest starts table session',
+      method:   'POST',
+      path:     `${SESSION_BASE}/start`,
+      expected: 201,
+      body:     { restaurantId: ownerRestaurantId, tableNumber: 1 },
+      tags:     [],
+    });
+    guestSessionId = resp?.session?._id ?? null;
+  }
+
+  await test({
+    id:       'T70',
+    name:     'Start session missing restaurantId',
+    method:   'POST',
+    path:     `${SESSION_BASE}/start`,
+    expected: 400,
+    body:     { tableNumber: 2 },
+    tags:     ['REQUIRED'],
+  });
+
+  if (guestSessionId && ownerRestaurantId) {
+    await test({
+      id:       'T71',
+      name:     'Get active session for table',
+      method:   'GET',
+      path:     `${SESSION_BASE}/active?restaurantId=${ownerRestaurantId}&tableNumber=1`,
+      expected: 200,
+      tags:     [],
+    });
+
+    await test({
+      id:       'T72',
+      name:     'Get session by id',
+      method:   'GET',
+      path:     `${SESSION_BASE}/${guestSessionId}`,
+      expected: 200,
+      tags:     [],
+    });
+  }
+
+  await test({
+    id:       'T73',
+    name:     'Get active session missing query params',
+    method:   'GET',
+    path:     `${SESSION_BASE}/active`,
+    expected: 400,
+    tags:     ['REQUIRED'],
+  });
+
+  await test({
+    id:       'T74',
+    name:     'Get session with malformed id',
+    method:   'GET',
+    path:     `${SESSION_BASE}/not-a-valid-id`,
+    expected: 400,
+    tags:     ['TYPE'],
+  });
+
+  // =============================
+  // CART (T75–T80)
+  // =============================
+
+  if (guestSessionId && guestMenuItemId) {
+    await test({
+      id:       'T75',
+      name:     'Get empty or new cart for session',
+      method:   'GET',
+      path:     `${CART_BASE}/${guestSessionId}`,
+      expected: 200,
+      tags:     [],
+    });
+
+    await test({
+      id:       'T76',
+      name:     'Add menu item to cart',
+      method:   'POST',
+      path:     `${CART_BASE}/${guestSessionId}/items`,
+      expected: 200,
+      body:     { menuItemId: guestMenuItemId, quantity: 2 },
+      tags:     [],
+    });
+
+    await test({
+      id:       'T77',
+      name:     'Add to cart missing menuItemId',
+      method:   'POST',
+      path:     `${CART_BASE}/${guestSessionId}/items`,
+      expected: 400,
+      body:     { quantity: 1 },
+      tags:     ['REQUIRED'],
+    });
+
+    await test({
+      id:       'T78',
+      name:     'Update cart item quantity',
+      method:   'PUT',
+      path:     `${CART_BASE}/${guestSessionId}/items/${guestMenuItemId}`,
+      expected: 200,
+      body:     { quantity: 1 },
+      tags:     [],
+    });
+
+    await test({
+      id:       'T79',
+      name:     'Remove item from cart',
+      method:   'DELETE',
+      path:     `${CART_BASE}/${guestSessionId}/items/${guestMenuItemId}`,
+      expected: 200,
+      tags:     [],
+    });
+
+    await test({
+      id:       'T80',
+      name:     'Re-add item to cart before order',
+      method:   'POST',
+      path:     `${CART_BASE}/${guestSessionId}/items`,
+      expected: 200,
+      body:     { menuItemId: guestMenuItemId, quantity: 1 },
+      tags:     [],
+    });
+
+    await test({
+      id:       'T81',
+      name:     'Get cart with malformed session id',
+      method:   'GET',
+      path:     `${CART_BASE}/not-a-valid-id`,
+      expected: 400,
+      tags:     ['TYPE'],
+    });
+  }
+
+  // =============================
+  // ORDERS (T82–T86)
+  // =============================
+
+  if (guestSessionId) {
+    {
+      const resp = await test({
+        id:       'T82',
+        name:     'Guest places order from cart',
+        method:   'POST',
+        path:     `${ORDER_BASE}/`,
+        expected: 201,
+        body:     { sessionId: guestSessionId },
+        tags:     [],
+      });
+      guestOrderId = resp?.order?._id ?? null;
+    }
+
+    if (guestOrderId) {
+      await test({
+        id:       'T83',
+        name:     'Get order by id',
+        method:   'GET',
+        path:     `${ORDER_BASE}/${guestOrderId}`,
+        expected: 200,
+        tags:     [],
+      });
+    }
+
+    await test({
+      id:       'T84',
+      name:     'Place order missing sessionId',
+      method:   'POST',
+      path:     `${ORDER_BASE}/`,
+      expected: 400,
+      body:     {},
+      tags:     ['REQUIRED'],
+    });
+
+    await test({
+      id:       'T85',
+      name:     'Get order with malformed id',
+      method:   'GET',
+      path:     `${ORDER_BASE}/not-a-valid-id`,
+      expected: 400,
+      tags:     ['TYPE'],
+    });
+  }
+
+  // Second session on table 2 for empty-cart order test
+  {
+    const resp2 = await test({
+      id:       'T86',
+      name:     'Guest starts session on table 2',
+      method:   'POST',
+      path:     `${SESSION_BASE}/start`,
+      expected: 201,
+      body:     { restaurantId: ownerRestaurantId, tableNumber: 2 },
+      tags:     [],
+    });
+    const session2Id = resp2?.session?._id ?? null;
+    if (session2Id) {
+      await test({
+        id:       'T87',
+        name:     'Place order with empty cart',
+        method:   'POST',
+        path:     `${ORDER_BASE}/`,
+        expected: 400,
+        body:     { sessionId: session2Id },
+        tags:     ['REQUIRED'],
+      });
+
+      await test({
+        id:       'T88',
+        name:     'Clear cart for session',
+        method:   'DELETE',
+        path:     `${CART_BASE}/${session2Id}`,
+        expected: 200,
+        tags:     [],
+      });
+    }
+  }
+
+  // =============================
+  // ANALYTICS (T89–T92)
+  // =============================
+
+  await test({
+    id:       'T89',
+    name:     'Owner gets analytics summary',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/summary`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T90',
+    name:     'Owner gets peak hours analytics',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/peak-hours`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T91',
+    name:     'Owner gets item forecast analytics',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/item-forecast`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T92',
+    name:     'Analytics summary without token',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/summary`,
+    expected: 401,
+    tags:     ['UNAUTHORIZED'],
+  });
+
+  // =============================
+  // SESSION CLOSE (T93–T94) — after guest flows
+  // =============================
+
+  if (guestSessionId) {
+    await test({
+      id:       'T93',
+      name:     'Owner closes guest session',
+      method:   'PATCH',
+      path:     `${SESSION_BASE}/${guestSessionId}/close`,
+      expected: 200,
+      token:    ownerToken,
+      tags:     [],
+    });
+
+    if (guestMenuItemId) {
+      await test({
+        id:       'T94',
+        name:     'Add to cart on closed session',
+        method:   'POST',
+        path:     `${CART_BASE}/${guestSessionId}/items`,
+        expected: 400,
+        body:     { menuItemId: guestMenuItemId, quantity: 1 },
+        tags:     ['REQUIRED'],
+      });
+    }
+  }
+
+  // Restore seeded owner display name after T53
+  await http('PUT', `${AUTH_BASE}/me`, { name: 'Demo Owner' }, ownerToken);
 
   // ---- FINAL OUTPUT ----
   const pass = logSummary();

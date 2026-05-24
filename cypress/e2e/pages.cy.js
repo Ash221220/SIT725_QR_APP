@@ -8,12 +8,9 @@
  *
  * Test groups:
  *   - Root route (GET /)
- *   - Login page
- *   - Index / landing page
- *   - Menu page
- *   - Admin dashboard
- *   - Owner dashboard
- *   - Static assets
+ *   - All HTML pages (login, signup, menu, dashboards, admin, owner, analytics)
+ *   - QR menu route (/menu/:restaurantId)
+ *   - Static JS/CSS assets
  *
  * Notes:
  *   Pages that are placeholder stubs will surface failing tests intentionally —
@@ -110,26 +107,79 @@ describe('GET /pages/owner-dashboard.html', () => {
   });
 });
 
+// ─── owner_signup.html ────────────────────────────────────────────────────────
+
+describe('GET /pages/owner_signup.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/owner_signup.html').its('status').should('equal', 200);
+  });
+
+  it('renders the owner signup form', () => {
+    cy.visit('/pages/owner_signup.html');
+    cy.get('#ownerSignupForm').should('exist');
+    cy.contains('h4', 'Owner Signup').should('be.visible');
+  });
+});
+
+// ─── owner-profile.html ─────────────────────────────────────────────────────
+
+describe('GET /pages/owner-profile.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/owner-profile.html').its('status').should('equal', 200);
+  });
+});
+
+// ─── analytics.html ─────────────────────────────────────────────────────────
+
+describe('GET /pages/analytics.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/analytics.html').its('status').should('equal', 200);
+  });
+});
+
+// ─── Admin pages ────────────────────────────────────────────────────────────
+
+describe('GET /pages/pending_owners.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/pending_owners.html').its('status').should('equal', 200);
+  });
+});
+
+describe('GET /pages/owners.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/owners.html').its('status').should('equal', 200);
+  });
+});
+
+describe('GET /pages/restaurants.html', () => {
+  it('returns HTTP 200', () => {
+    cy.request('/pages/restaurants.html').its('status').should('equal', 200);
+  });
+});
+
+describe('GET /pages/ind_restaurant.html', () => {
+  it('returns HTTP 200 with query params', () => {
+    cy.request('/pages/ind_restaurant.html?id=rest1&name=Test').its('status').should('equal', 200);
+  });
+});
+
 // ─── Static assets ────────────────────────────────────────────────────────────
 
 describe('Static assets are served correctly', () => {
-  it('config.js is reachable', () => {
-    cy.request('/js/config.js').its('status').should('equal', 200);
-  });
+  const assets = [
+    '/js/config.js',
+    '/js/auth.js',
+    '/js/owner.js',
+    '/js/owner-profile.js',
+    '/js/admin.js',
+    '/js/menu.js',
+    '/js/analytics.js',
+    '/css/style.css',
+  ];
 
-  it('auth.js is reachable', () => {
-    cy.request('/js/auth.js').its('status').should('equal', 200);
-  });
-
-  it('owner.js is reachable', () => {
-    cy.request('/js/owner.js').its('status').should('equal', 200);
-  });
-
-  it('admin.js is reachable', () => {
-    cy.request('/js/admin.js').its('status').should('equal', 200);
-  });
-
-  it('menu.js is reachable', () => {
-    cy.request('/js/menu.js').its('status').should('equal', 200);
+  assets.forEach((asset) => {
+    it(`${asset} is reachable`, () => {
+      cy.request(asset).its('status').should('equal', 200);
+    });
   });
 });
