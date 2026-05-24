@@ -10,6 +10,7 @@
  *   PATCH /api/admin/owners/:id/approve
  *   PATCH /api/admin/owners/:id/reject
  *   PATCH /api/admin/owners/:id/disable
+ *   PATCH /api/admin/owners/:id/enable
  *   GET   /api/admin/restaurants
  *   POST  /api/admin/restaurants/:id/tables
  *   GET   /api/admin/restaurants/:id/tables
@@ -288,10 +289,147 @@ describe('PATCH /api/admin/owners/:id/disable — integration', () => {
     expect(res.status).to.equal(404);
   });
 
+  it('returns 403 when called with an owner token', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('disableforbidden');
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'disableforbidden@example.com', password: 'password123' });
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/disable`)
+      .set('Authorization', `Bearer ${loginRes.body.token}`);
+
+    expect(res.status).to.equal(403);
+  });
+
+  it('disabled owner cannot login', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('disabledlogin');
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/disable`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'disabledlogin@example.com', password: 'password123' });
+
+    expect(res.status).to.equal(403);
+  });
+
   it('returns 401 with no token', async () => {
     const res = await request(app)
       .patch('/api/admin/owners/64a1b2c3d4e5f6a7b8c9d0e1/disable');
     expect(res.status).to.equal(401);
+  });
+});
+
+// ─── PATCH /api/admin/owners/:id/enable ──────────────────────────────────────
+
+describe('PATCH /api/admin/owners/:id/enable — integration', () => {
+  it('enables a disabled owner and returns 200', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('toenable');
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/disable`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/enable`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+
+    const inDB = await User.findById(ownerId);
+    expect(inDB.status).to.equal('approved');
+  });
+
+  it('enabled owner can login after being re-enabled', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('enablelogin');
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/disable`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/enable`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'enablelogin@example.com', password: 'password123' });
+
+    expect(loginRes.status).to.equal(200);
+    expect(loginRes.body).to.have.property('token');
+  });
+
+  it('returns 400 when owner is not currently disabled', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('enablenotdisabled');
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/enable`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 400 when the owner id is not a valid ObjectId', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/not-a-valid-id/enable')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(400);
+  });
+
+  it('returns 404 when the owner id does not exist', async () => {
+    const adminToken = await seedAdmin();
+
+    const res = await request(app)
+      .patch('/api/admin/owners/64a1b2c3d4e5f6a7b8c9d0e1/enable')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).to.equal(404);
+  });
+
+  it('returns 401 with no token', async () => {
+    const res = await request(app)
+      .patch('/api/admin/owners/64a1b2c3d4e5f6a7b8c9d0e1/enable');
+    expect(res.status).to.equal(401);
+  });
+
+  it('returns 403 when called with an owner token', async () => {
+    const adminToken = await seedAdmin();
+    const ownerId    = await registerPendingOwner('enableforbidden');
+
+    await request(app)
+      .patch(`/api/admin/owners/${ownerId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'enableforbidden@example.com', password: 'password123' });
+
+    const res = await request(app)
+      .patch(`/api/admin/owners/${ownerId}/enable`)
+      .set('Authorization', `Bearer ${loginRes.body.token}`);
+
+    expect(res.status).to.equal(403);
   });
 });
 

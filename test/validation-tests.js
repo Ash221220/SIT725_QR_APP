@@ -7,6 +7,9 @@
  *   3. cd backend && npm start
  *   4. node test/validation-tests.js
  *
+ * Extended coverage: T51–T94 (auth profile, restaurant, public menu,
+ * images, sessions, cart, orders, analytics).
+ *
  * PREREQUISITE: seed:admin must have run at least once.
  *   Seeded credentials:
  *     Admin:  admin@system.com  / admin123
@@ -19,17 +22,17 @@
  *   - coverageTracker object
  *   - Logging structure
  *
- * TASK DISTRIBUTION:
- *   Ferdinand Jacques Liauw   (QA Lead)  — T01–T28, T36–T45  (~81%)
- *   Aroor Rohan Rao           (Auth)     — T29–T31            (~6%)
- *   Ben Baiju                 (Menu)     — T32–T34            (~6%)
- *   Avinash Shankaranarayanan (Admin)    — T35, T46–T47       (~6%)
  */
 
 const BASE_URL  = process.env.BASE_URL || 'http://localhost:5001';
 const AUTH_BASE  = '/api/auth';
 const MENU_BASE  = '/api/menu';
 const ADMIN_BASE = '/api/admin';
+const RESTAURANT_BASE = '/api/restaurants';
+const SESSION_BASE = '/api/sessions';
+const CART_BASE = '/api/cart';
+const ORDER_BASE = '/api/orders';
+const ANALYTICS_BASE = '/api/analytics';
 
 // =============================
 // INTERNAL STATE (DO NOT MODIFY)
@@ -106,6 +109,31 @@ async function http(method, path, body, token) {
   });
   const text = await res.text();
   return { status: res.status, text };
+}
+
+/** Multipart upload helper (menu images). Uses same TEST| output via testMultipart(). */
+async function testMultipart({ id, name, path, expected, token, fieldName, buffer, filename, mimeType, tags }) {
+  const form = new FormData();
+  form.append(fieldName, new Blob([buffer], { type: mimeType }), filename);
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: form });
+  const text = await res.text();
+  const pass = res.status === expected;
+
+  const result = { id, name, method: 'POST', path, expected, actual: res.status, pass };
+  results.push(result);
+  logResult(result);
+
+  const safeTags = Array.isArray(tags) ? tags : [];
+  safeTags.forEach(tag => {
+    if (Object.prototype.hasOwnProperty.call(coverageTracker, tag)) {
+      coverageTracker[tag]++;
+    }
+  });
+
+  try { return JSON.parse(text); } catch { return {}; }
 }
 
 // =============================
@@ -207,17 +235,15 @@ async function run() {
   }
 
   // IDs shared across tests
-  let testOwner1Id      = null;   // registered in T01 (pending) — used by Aroor's T29
-  let testOwner2Id      = null;   // registered just before T31 (pending) — used by Aroor's T31
-  let createdItemId     = null;   // menu item created in T17 — used by T21–T27
-  let testDisableOwner  = null;   // registered just before T45 (pending) — used by T45
+  let testOwner1Id       = null;
+  let testOwner2Id       = null;
+  let createdItemId      = null;
+  let testDisableOwner   = null;
+  let testDisableOwnerEmail = null;
 
-  // =====================================================================
-  // FERDINAND JACQUES LIAUW — T01–T28, T36–T45  (~81%)
-  // QA Lead — owns registration, login, security, menu CRUD, admin routes, and boundary tests
-  // =====================================================================
-
-  // ---- REGISTRATION ----
+  // =============================
+  // REGISTRATION
+  // =============================
 
   // ---- T01 Valid owner register ----
   {
@@ -299,7 +325,9 @@ async function run() {
     tags:     ['REGISTER_FAIL', 'REQUIRED'],
   });
 
-  // ---- LOGIN ----
+  // =============================
+  // LOGIN
+  // =============================
 
   // ---- T08 Valid admin login ----
   await test({
@@ -367,11 +395,25 @@ async function run() {
     tags:     ['AUTH_FAIL', 'REQUIRED'],
   });
 
-  // ---- SECURITY / AUTHORISATION ----
-
-  // ---- T14 Protected route with no token ----
+  // ---- T14 Pending owner account cannot login ----
+  // Must run before T45 (approve) so the account is still pending
   await test({
     id:       'T14',
+    name:     'Pending owner account cannot login',
+    method:   'POST',
+    path:     `${AUTH_BASE}/login`,
+    expected: 403,
+    body:     { email: `testowner_${uniqueId}@example.com`, password: 'password123' },
+    tags:     ['AUTH_FAIL', 'FORBIDDEN'],
+  });
+
+  // =============================
+  // SECURITY / AUTHORISATION
+  // =============================
+
+  // ---- T15 Protected route with no token ----
+  await test({
+    id:       'T15',
     name:     'Access protected route without token',
     method:   'GET',
     path:     `${MENU_BASE}/my`,
@@ -379,9 +421,9 @@ async function run() {
     tags:     ['UNAUTHORIZED'],
   });
 
-  // ---- T15 Owner token on admin-only route ----
+  // ---- T16 Owner token on admin-only route ----
   await test({
-    id:       'T15',
+    id:       'T16',
     name:     'Owner token on admin-only route',
     method:   'GET',
     path:     `${ADMIN_BASE}/owners`,
@@ -390,9 +432,9 @@ async function run() {
     tags:     ['FORBIDDEN'],
   });
 
-  // ---- T16 Invalid JWT token ----
+  // ---- T17 Invalid JWT token ----
   await test({
-    id:       'T16',
+    id:       'T17',
     name:     'Invalid JWT token on protected route',
     method:   'GET',
     path:     `${MENU_BASE}/my`,
@@ -401,12 +443,45 @@ async function run() {
     tags:     ['UNAUTHORIZED'],
   });
 
-  // ---- MENU CRUD ----
+  // ---- T18 No token on admin pending owners endpoint ----
+  await test({
+    id:       'T18',
+    name:     'No token on admin pending owners endpoint',
+    method:   'GET',
+    path:     `${ADMIN_BASE}/owners/pending`,
+    expected: 401,
+    tags:     ['UNAUTHORIZED'],
+  });
 
-  // ---- T17 Owner creates valid menu item ----
+  // ---- T19 Owner token on pending owners endpoint returns 403 ----
+  await test({
+    id:       'T19',
+    name:     'Owner token on pending owners endpoint returns 403',
+    method:   'GET',
+    path:     `${ADMIN_BASE}/owners/pending`,
+    expected: 403,
+    token:    ownerToken,
+    tags:     ['FORBIDDEN'],
+  });
+
+  // ---- T20 No token on admin restaurants endpoint returns 401 ----
+  await test({
+    id:       'T20',
+    name:     'No token on admin restaurants endpoint returns 401',
+    method:   'GET',
+    path:     `${ADMIN_BASE}/restaurants`,
+    expected: 401,
+    tags:     ['UNAUTHORIZED'],
+  });
+
+  // =============================
+  // MENU CRUD
+  // =============================
+
+  // ---- T21 Owner creates valid menu item ----
   {
     const resp = await test({
-      id:       'T17',
+      id:       'T21',
       name:     'Owner creates valid menu item',
       method:   'POST',
       path:     `${MENU_BASE}/my`,
@@ -418,9 +493,9 @@ async function run() {
     createdItemId = resp?.item?._id ?? null;
   }
 
-  // ---- T18 Create menu item — missing name ----
+  // ---- T22 Create menu item — missing name ----
   await test({
-    id:       'T18',
+    id:       'T22',
     name:     'Create menu item missing name',
     method:   'POST',
     path:     `${MENU_BASE}/my`,
@@ -430,9 +505,9 @@ async function run() {
     tags:     ['MENU_FAIL', 'REQUIRED'],
   });
 
-  // ---- T19 Create menu item — missing price ----
+  // ---- T23 Create menu item — missing price ----
   await test({
-    id:       'T19',
+    id:       'T23',
     name:     'Create menu item missing price',
     method:   'POST',
     path:     `${MENU_BASE}/my`,
@@ -442,296 +517,9 @@ async function run() {
     tags:     ['MENU_FAIL', 'REQUIRED'],
   });
 
-  // ---- T20 Owner gets their own menu ----
-  await test({
-    id:       'T20',
-    name:     'Owner gets their own menu',
-    method:   'GET',
-    path:     `${MENU_BASE}/my`,
-    expected: 200,
-    token:    ownerToken,
-    tags:     [],
-  });
-
-  // ---- T21 Owner updates a menu item ----
-  await test({
-    id:       'T21',
-    name:     'Owner updates a menu item',
-    method:   'PUT',
-    path:     `${MENU_BASE}/my/${createdItemId}`,
-    expected: 200,
-    body:     makeValidMenuUpdate(),
-    token:    ownerToken,
-    tags:     [],
-  });
-
-  // ---- T22 Toggle item availability to false ----
-  await test({
-    id:       'T22',
-    name:     'Toggle menu item availability to false',
-    method:   'PATCH',
-    path:     `${MENU_BASE}/my/${createdItemId}/availability`,
-    expected: 200,
-    body:     { isAvailable: false },
-    token:    ownerToken,
-    tags:     [],
-  });
-
-  // ---- T23 Toggle item availability back to true ----
-  await test({
-    id:       'T23',
-    name:     'Toggle menu item availability to true',
-    method:   'PATCH',
-    path:     `${MENU_BASE}/my/${createdItemId}/availability`,
-    expected: 200,
-    body:     { isAvailable: true },
-    token:    ownerToken,
-    tags:     [],
-  });
-
-  // ---- T24 Toggle availability with non-boolean string ----
+  // ---- T24 Create menu item with all optional fields populated ----
   await test({
     id:       'T24',
-    name:     'Toggle availability with non-boolean string',
-    method:   'PATCH',
-    path:     `${MENU_BASE}/my/${createdItemId}/availability`,
-    expected: 400,
-    body:     { isAvailable: 'yes' },
-    token:    ownerToken,
-    tags:     ['MENU_FAIL', 'TYPE'],
-  });
-
-  // ---- T25 Owner deletes menu item ----
-  await test({
-    id:       'T25',
-    name:     'Owner deletes menu item',
-    method:   'DELETE',
-    path:     `${MENU_BASE}/my/${createdItemId}`,
-    expected: 200,
-    token:    ownerToken,
-    tags:     [],
-  });
-
-  // ---- T26 Update already-deleted menu item ----
-  await test({
-    id:       'T26',
-    name:     'Update already-deleted menu item',
-    method:   'PUT',
-    path:     `${MENU_BASE}/my/${createdItemId}`,
-    expected: 404,
-    body:     makeValidMenuUpdate(),
-    token:    ownerToken,
-    tags:     ['MENU_FAIL', 'NOT_FOUND'],
-  });
-
-  // ---- T27 Delete already-deleted menu item ----
-  await test({
-    id:       'T27',
-    name:     'Delete already-deleted menu item',
-    method:   'DELETE',
-    path:     `${MENU_BASE}/my/${createdItemId}`,
-    expected: 404,
-    token:    ownerToken,
-    tags:     ['MENU_FAIL', 'NOT_FOUND'],
-  });
-
-  // ---- T28 Pending owner account cannot login ----
-  await test({
-    id:       'T28',
-    name:     'Pending owner account cannot login',
-    method:   'POST',
-    path:     `${AUTH_BASE}/login`,
-    expected: 403,
-    body:     { email: `testowner_${uniqueId}@example.com`, password: 'password123' },
-    tags:     ['AUTH_FAIL', 'FORBIDDEN'],
-  });
-
-  // =====================================================================
-  // FERDINAND JACQUES LIAUW — T36–T45  (Extended: Admin Routes & Boundaries)
-  // =====================================================================
-
-  // ---- EXTENDED ADMIN ROUTES ----
-
-  // ---- T36 Admin gets pending owners list ----
-  await test({
-    id:       'T36',
-    name:     'Admin gets pending owners list',
-    method:   'GET',
-    path:     `${ADMIN_BASE}/owners/pending`,
-    expected: 200,
-    token:    adminToken,
-    tags:     [],
-  });
-
-  // ---- T37 Admin gets all restaurants ----
-  await test({
-    id:       'T37',
-    name:     'Admin gets all restaurants',
-    method:   'GET',
-    path:     `${ADMIN_BASE}/restaurants`,
-    expected: 200,
-    token:    adminToken,
-    tags:     [],
-  });
-
-  // ---- T38 Admin sets tables for a restaurant ----
-  await test({
-    id:       'T38',
-    name:     'Admin sets tables for a restaurant',
-    method:   'POST',
-    path:     `${ADMIN_BASE}/restaurants/${ownerRestaurantId}/tables`,
-    expected: 201,
-    body:     { totalTables: 5 },
-    token:    adminToken,
-    tags:     [],
-  });
-
-  // ---- T39 Admin gets tables for a restaurant ----
-  await test({
-    id:       'T39',
-    name:     'Admin gets tables for a restaurant',
-    method:   'GET',
-    path:     `${ADMIN_BASE}/restaurants/${ownerRestaurantId}/tables`,
-    expected: 200,
-    token:    adminToken,
-    tags:     [],
-  });
-
-  // ---- T40 Owner gets their own tables ----
-  await test({
-    id:       'T40',
-    name:     'Owner gets their own tables',
-    method:   'GET',
-    path:     `${MENU_BASE}/my/tables`,
-    expected: 200,
-    token:    ownerToken,
-    tags:     [],
-  });
-
-  // ---- BOUNDARY / EDGE CASES ----
-
-  // ---- T41 Update menu item with malformed ObjectId ----
-  await test({
-    id:       'T41',
-    name:     'Update menu item with malformed ObjectId',
-    method:   'PUT',
-    path:     `${MENU_BASE}/my/not-a-valid-id`,
-    expected: 400,
-    body:     makeValidMenuUpdate(),
-    token:    ownerToken,
-    tags:     ['MENU_FAIL', 'TYPE'],
-  });
-
-  // ---- T42 Delete menu item with malformed ObjectId ----
-  await test({
-    id:       'T42',
-    name:     'Delete menu item with malformed ObjectId',
-    method:   'DELETE',
-    path:     `${MENU_BASE}/my/not-a-valid-id`,
-    expected: 400,
-    token:    ownerToken,
-    tags:     ['MENU_FAIL', 'TYPE'],
-  });
-
-  // ---- T43 Toggle availability with malformed ObjectId ----
-  await test({
-    id:       'T43',
-    name:     'Toggle availability with malformed ObjectId',
-    method:   'PATCH',
-    path:     `${MENU_BASE}/my/not-a-valid-id/availability`,
-    expected: 400,
-    body:     { isAvailable: true },
-    token:    ownerToken,
-    tags:     ['MENU_FAIL', 'TYPE'],
-  });
-
-  // ---- T44 No token on admin pending owners endpoint ----
-  await test({
-    id:       'T44',
-    name:     'No token on admin pending owners endpoint',
-    method:   'GET',
-    path:     `${ADMIN_BASE}/owners/pending`,
-    expected: 401,
-    tags:     ['UNAUTHORIZED'],
-  });
-
-  // Register a throwaway owner specifically for the disable test
-  {
-    const suffixDis = `${uniqueId}dis`;
-    const respDis   = await http('POST', `${AUTH_BASE}/register`, makeValidOwner(suffixDis));
-    const dataDis   = JSON.parse(respDis.text);
-    testDisableOwner = dataDis?.user?._id ?? null;
-  }
-
-  // ---- T45 Admin disables a pending owner ----
-  await test({
-    id:       'T45',
-    name:     'Admin disables a pending owner',
-    method:   'PATCH',
-    path:     `${ADMIN_BASE}/owners/${testDisableOwner}/disable`,
-    expected: 200,
-    token:    adminToken,
-    tags:     [],
-  });
-
-  // =====================================================================
-  // AROOR ROHAN RAO — T29–T31  (~6%)
-  // Student: Aroor Rohan Rao (s226035073)
-  // Domain: Admin approval & auth state flow
-  // Task: Verify T29–T31 all pass; attach screenshot of passing run to submission
-  // =====================================================================
-
-  // ---- T29 Admin approves pending owner (registered in T01) ----
-  await test({
-    id:       'T29',
-    name:     'Admin approves pending owner',
-    method:   'PATCH',
-    path:     `${ADMIN_BASE}/owners/${testOwner1Id}/approve`,
-    expected: 200,
-    token:    adminToken,
-    tags:     [],
-  });
-
-  // ---- T30 Approved owner can now login ----
-  await test({
-    id:       'T30',
-    name:     'Approved owner can now login',
-    method:   'POST',
-    path:     `${AUTH_BASE}/login`,
-    expected: 200,
-    body:     { email: `testowner_${uniqueId}@example.com`, password: 'password123' },
-    tags:     [],
-  });
-
-  // Register a second pending owner so T31 has a subject to reject
-  {
-    const suffix2 = `${uniqueId}rej`;
-    const resp2 = await http('POST', `${AUTH_BASE}/register`, makeValidOwner(suffix2));
-    const data2 = JSON.parse(resp2.text);
-    testOwner2Id = data2?.user?._id ?? null;
-  }
-
-  // ---- T31 Admin rejects a pending owner ----
-  await test({
-    id:       'T31',
-    name:     'Admin rejects a pending owner',
-    method:   'PATCH',
-    path:     `${ADMIN_BASE}/owners/${testOwner2Id}/reject`,
-    expected: 200,
-    token:    adminToken,
-    tags:     [],
-  });
-
-  // =====================================================================
-  // BEN BAIJU — T32–T34  (~6%)
-  // Student: Ben Baiju (s225709846)
-  // Domain: Menu item edge cases & admin menu visibility
-  // Task: Verify T32–T34 all pass; attach screenshot of passing run to submission
-  // =====================================================================
-
-  // ---- T32 Create menu item with all optional fields populated ----
-  await test({
-    id:       'T32',
     name:     'Create menu item with all optional fields',
     method:   'POST',
     path:     `${MENU_BASE}/my`,
@@ -748,9 +536,9 @@ async function run() {
     tags:  [],
   });
 
-  // ---- T33 Create menu item without authentication ----
+  // ---- T25 Create menu item without authentication ----
   await test({
-    id:       'T33',
+    id:       'T25',
     name:     'Create menu item without authentication',
     method:   'POST',
     path:     `${MENU_BASE}/my`,
@@ -759,27 +547,156 @@ async function run() {
     tags:     ['MENU_FAIL', 'UNAUTHORIZED'],
   });
 
-  // ---- T34 Super admin views full menu by restaurantId ----
+  // ---- T26 Owner gets their own menu ----
   await test({
-    id:       'T34',
-    name:     'Super admin views menu by restaurantId',
+    id:       'T26',
+    name:     'Owner gets their own menu',
     method:   'GET',
-    path:     `${MENU_BASE}/${ownerRestaurantId}`,
+    path:     `${MENU_BASE}/my`,
     expected: 200,
-    token:    adminToken,
+    token:    ownerToken,
     tags:     [],
   });
 
-  // =====================================================================
-  // AVINASH SHANKARANARAYANAN — T35, T46–T47  (~6%)
-  // Student: Avinash Shankaranarayanan (s225596878)
-  // Domain: Admin management endpoints & access-control security checks
-  // Task: Verify T35, T46–T47 all pass; attach screenshot of passing run to submission
-  // =====================================================================
+  // ---- T27 Owner updates a menu item ----
+  await test({
+    id:       'T27',
+    name:     'Owner updates a menu item',
+    method:   'PUT',
+    path:     `${MENU_BASE}/my/${createdItemId}`,
+    expected: 200,
+    body:     makeValidMenuUpdate(),
+    token:    ownerToken,
+    tags:     [],
+  });
 
-  // ---- T35 Admin gets all owners list ----
+  // ---- T28 Toggle item availability to false ----
+  await test({
+    id:       'T28',
+    name:     'Toggle menu item availability to false',
+    method:   'PATCH',
+    path:     `${MENU_BASE}/my/${createdItemId}/availability`,
+    expected: 200,
+    body:     { isAvailable: false },
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  // ---- T29 Toggle item availability back to true ----
+  await test({
+    id:       'T29',
+    name:     'Toggle menu item availability to true',
+    method:   'PATCH',
+    path:     `${MENU_BASE}/my/${createdItemId}/availability`,
+    expected: 200,
+    body:     { isAvailable: true },
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  // ---- T30 Toggle availability with non-boolean string ----
+  await test({
+    id:       'T30',
+    name:     'Toggle availability with non-boolean string',
+    method:   'PATCH',
+    path:     `${MENU_BASE}/my/${createdItemId}/availability`,
+    expected: 400,
+    body:     { isAvailable: 'yes' },
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  // ---- T31 Owner deletes menu item ----
+  await test({
+    id:       'T31',
+    name:     'Owner deletes menu item',
+    method:   'DELETE',
+    path:     `${MENU_BASE}/my/${createdItemId}`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  // ---- T32 Update already-deleted menu item ----
+  await test({
+    id:       'T32',
+    name:     'Update already-deleted menu item',
+    method:   'PUT',
+    path:     `${MENU_BASE}/my/${createdItemId}`,
+    expected: 404,
+    body:     makeValidMenuUpdate(),
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'NOT_FOUND'],
+  });
+
+  // ---- T33 Delete already-deleted menu item ----
+  await test({
+    id:       'T33',
+    name:     'Delete already-deleted menu item',
+    method:   'DELETE',
+    path:     `${MENU_BASE}/my/${createdItemId}`,
+    expected: 404,
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'NOT_FOUND'],
+  });
+
+  // =============================
+  // MENU — BOUNDARY / EDGE CASES
+  // =============================
+
+  // ---- T34 Owner gets their own tables ----
+  await test({
+    id:       'T34',
+    name:     'Owner gets their own tables',
+    method:   'GET',
+    path:     `${MENU_BASE}/my/tables`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  // ---- T35 Update menu item with malformed ObjectId ----
   await test({
     id:       'T35',
+    name:     'Update menu item with malformed ObjectId',
+    method:   'PUT',
+    path:     `${MENU_BASE}/my/not-a-valid-id`,
+    expected: 400,
+    body:     makeValidMenuUpdate(),
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  // ---- T36 Delete menu item with malformed ObjectId ----
+  await test({
+    id:       'T36',
+    name:     'Delete menu item with malformed ObjectId',
+    method:   'DELETE',
+    path:     `${MENU_BASE}/my/not-a-valid-id`,
+    expected: 400,
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  // ---- T37 Toggle availability with malformed ObjectId ----
+  await test({
+    id:       'T37',
+    name:     'Toggle availability with malformed ObjectId',
+    method:   'PATCH',
+    path:     `${MENU_BASE}/my/not-a-valid-id/availability`,
+    expected: 400,
+    body:     { isAvailable: true },
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  // =============================
+  // ADMIN ROUTES — LISTS
+  // =============================
+
+  // ---- T38 Admin gets all owners list ----
+  await test({
+    id:       'T38',
     name:     'Admin gets all owners list',
     method:   'GET',
     path:     `${ADMIN_BASE}/owners`,
@@ -788,26 +705,690 @@ async function run() {
     tags:     [],
   });
 
-  // ---- T46 Owner token on pending owners endpoint returns 403 ----
+  // ---- T39 Admin gets pending owners list ----
   await test({
-    id:       'T46',
-    name:     'Owner token on pending owners endpoint returns 403',
+    id:       'T39',
+    name:     'Admin gets pending owners list',
     method:   'GET',
     path:     `${ADMIN_BASE}/owners/pending`,
-    expected: 403,
-    token:    ownerToken,
-    tags:     ['FORBIDDEN'],
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
   });
 
-  // ---- T47 No token on admin restaurants endpoint returns 401 ----
+  // ---- T40 Admin gets all restaurants ----
   await test({
-    id:       'T47',
-    name:     'No token on admin restaurants endpoint returns 401',
+    id:       'T40',
+    name:     'Admin gets all restaurants',
     method:   'GET',
     path:     `${ADMIN_BASE}/restaurants`,
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // ---- T41 Super admin views full menu by restaurantId ----
+  await test({
+    id:       'T41',
+    name:     'Super admin views menu by restaurantId',
+    method:   'GET',
+    path:     `${MENU_BASE}/${ownerRestaurantId}`,
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // =============================
+  // ADMIN ROUTES — TABLES
+  // =============================
+
+  // ---- T42 Admin sets tables for a restaurant ----
+  await test({
+    id:       'T42',
+    name:     'Admin sets tables for a restaurant',
+    method:   'POST',
+    path:     `${ADMIN_BASE}/restaurants/${ownerRestaurantId}/tables`,
+    expected: 201,
+    body:     { totalTables: 5 },
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // ---- T43 Admin gets tables for a restaurant ----
+  await test({
+    id:       'T43',
+    name:     'Admin gets tables for a restaurant',
+    method:   'GET',
+    path:     `${ADMIN_BASE}/restaurants/${ownerRestaurantId}/tables`,
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // =============================
+  // ADMIN ROUTES — OWNER MANAGEMENT
+  // =============================
+
+  // Register a throwaway owner specifically for the disable/enable flow
+  {
+    const suffixDis        = `${uniqueId}dis`;
+    const respDis          = await http('POST', `${AUTH_BASE}/register`, makeValidOwner(suffixDis));
+    const dataDis          = JSON.parse(respDis.text);
+    testDisableOwner       = dataDis?.user?._id ?? null;
+    testDisableOwnerEmail  = `testowner_${suffixDis}@example.com`;
+  }
+
+  // ---- T44 Admin disables a pending owner ----
+  await test({
+    id:       'T44',
+    name:     'Admin disables a pending owner',
+    method:   'PATCH',
+    path:     `${ADMIN_BASE}/owners/${testDisableOwner}/disable`,
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // ---- T45 Disabled owner cannot login ----
+  await test({
+    id:       'T45',
+    name:     'Disabled owner cannot login',
+    method:   'POST',
+    path:     `${AUTH_BASE}/login`,
+    expected: 403,
+    body:     { email: testDisableOwnerEmail, password: 'password123' },
+    tags:     ['AUTH_FAIL', 'FORBIDDEN'],
+  });
+
+  // ---- T46 Admin enables a disabled owner ----
+  await test({
+    id:       'T46',
+    name:     'Admin enables a disabled owner',
+    method:   'PATCH',
+    path:     `${ADMIN_BASE}/owners/${testDisableOwner}/enable`,
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // ---- T47 Re-enabled owner can login again ----
+  await test({
+    id:       'T47',
+    name:     'Re-enabled owner can login again',
+    method:   'POST',
+    path:     `${AUTH_BASE}/login`,
+    expected: 200,
+    body:     { email: testDisableOwnerEmail, password: 'password123' },
+    tags:     [],
+  });
+
+  // ---- T48 Admin approves pending owner (registered in T01) ----
+  await test({
+    id:       'T48',
+    name:     'Admin approves pending owner',
+    method:   'PATCH',
+    path:     `${ADMIN_BASE}/owners/${testOwner1Id}/approve`,
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // ---- T49 Approved owner can now login ----
+  await test({
+    id:       'T49',
+    name:     'Approved owner can now login',
+    method:   'POST',
+    path:     `${AUTH_BASE}/login`,
+    expected: 200,
+    body:     { email: `testowner_${uniqueId}@example.com`, password: 'password123' },
+    tags:     [],
+  });
+
+  // Register a second pending owner for the reject test
+  {
+    const suffix2 = `${uniqueId}rej`;
+    const resp2   = await http('POST', `${AUTH_BASE}/register`, makeValidOwner(suffix2));
+    const data2   = JSON.parse(resp2.text);
+    testOwner2Id  = data2?.user?._id ?? null;
+  }
+
+  // ---- T50 Admin rejects a pending owner ----
+  await test({
+    id:       'T50',
+    name:     'Admin rejects a pending owner',
+    method:   'PATCH',
+    path:     `${ADMIN_BASE}/owners/${testOwner2Id}/reject`,
+    expected: 200,
+    token:    adminToken,
+    tags:     [],
+  });
+
+  // IDs shared across extended validation tests (T51+)
+  let guestMenuItemId = null;
+  let guestSessionId = null;
+  let guestOrderId = null;
+  let uploadedImageId = null;
+
+  // =============================
+  // AUTH PROFILE (T51–T56)
+  // =============================
+
+  await test({
+    id:       'T51',
+    name:     'Owner gets own profile',
+    method:   'GET',
+    path:     `${AUTH_BASE}/me`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T52',
+    name:     'Get profile without token',
+    method:   'GET',
+    path:     `${AUTH_BASE}/me`,
     expected: 401,
     tags:     ['UNAUTHORIZED'],
   });
+
+  await test({
+    id:       'T53',
+    name:     'Owner updates profile name',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me`,
+    expected: 200,
+    body:     { name: 'Seeded Owner Updated' },
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T54',
+    name:     'Update profile with no fields',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me`,
+    expected: 400,
+    body:     {},
+    token:    ownerToken,
+    tags:     ['REQUIRED'],
+  });
+
+  await test({
+    id:       'T55',
+    name:     'Change password with wrong current password',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me/password`,
+    expected: 401,
+    body:     { currentPassword: 'wrongpassword', newPassword: 'newpass123' },
+    token:    ownerToken,
+    tags:     ['AUTH_FAIL'],
+  });
+
+  await test({
+    id:       'T56',
+    name:     'Change password with password too short',
+    method:   'PUT',
+    path:     `${AUTH_BASE}/me/password`,
+    expected: 400,
+    body:     { currentPassword: 'owner123', newPassword: '12345' },
+    token:    ownerToken,
+    tags:     ['AUTH_FAIL', 'BOUNDARY'],
+  });
+
+  // =============================
+  // RESTAURANT (T57–T60)
+  // =============================
+
+  await test({
+    id:       'T57',
+    name:     'Owner gets linked restaurant',
+    method:   'GET',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T58',
+    name:     'Owner updates restaurant phone',
+    method:   'PUT',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 200,
+    body:     { phone: '0399998888' },
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T59',
+    name:     'Update restaurant with no fields',
+    method:   'PUT',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 400,
+    body:     {},
+    token:    ownerToken,
+    tags:     ['REQUIRED'],
+  });
+
+  await test({
+    id:       'T60',
+    name:     'Get restaurant without token',
+    method:   'GET',
+    path:     `${RESTAURANT_BASE}/my`,
+    expected: 401,
+    tags:     ['UNAUTHORIZED'],
+  });
+
+  // =============================
+  // PUBLIC MENU (T61–T63)
+  // =============================
+
+  await test({
+    id:       'T61',
+    name:     'Guest gets public menu by restaurantId',
+    method:   'GET',
+    path:     `${MENU_BASE}/public/${ownerRestaurantId}`,
+    expected: 200,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T62',
+    name:     'Public menu with malformed restaurantId',
+    method:   'GET',
+    path:     `${MENU_BASE}/public/not-a-valid-id`,
+    expected: 400,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  await test({
+    id:       'T63',
+    name:     'Public menu for non-existent restaurant',
+    method:   'GET',
+    path:     `${MENU_BASE}/public/507f1f77bcf86cd799439099`,
+    expected: 404,
+    tags:     ['MENU_FAIL', 'NOT_FOUND'],
+  });
+
+  // =============================
+  // MENU ITEM FOR GUEST FLOW (T64)
+  // =============================
+
+  {
+    const resp = await test({
+      id:       'T64',
+      name:     'Owner creates menu item for guest cart flow',
+      method:   'POST',
+      path:     `${MENU_BASE}/my`,
+      expected: 201,
+      body:     {
+        name:        'Validation Burger',
+        category:    'Mains',
+        description: 'Item used for cart and order validation tests.',
+        price:       14.5,
+        isAvailable: true,
+      },
+      token:    ownerToken,
+      tags:     [],
+    });
+    guestMenuItemId = resp?.item?._id ?? null;
+  }
+
+  // =============================
+  // MENU IMAGES (T65–T67)
+  // =============================
+
+  await test({
+    id:       'T65',
+    name:     'Upload menu image without file',
+    method:   'POST',
+    path:     `${MENU_BASE}/my/images`,
+    expected: 400,
+    token:    ownerToken,
+    tags:     ['MENU_FAIL', 'REQUIRED'],
+  });
+
+  {
+    const resp = await testMultipart({
+      id:       'T66',
+      name:     'Owner uploads menu image',
+      path:     `${MENU_BASE}/my/images`,
+      expected: 201,
+      token:    ownerToken,
+      fieldName: 'image',
+      buffer:   Buffer.from('fake-png-validation'),
+      filename: 'validation-test.png',
+      mimeType: 'image/png',
+      tags:     [],
+    });
+    uploadedImageId = resp?.imageFileId ?? null;
+  }
+
+  if (uploadedImageId) {
+    await test({
+      id:       'T67',
+      name:     'Get uploaded menu image by id',
+      method:   'GET',
+      path:     `${MENU_BASE}/images/${uploadedImageId}`,
+      expected: 200,
+      tags:     [],
+    });
+  } else {
+    await test({
+      id:       'T67',
+      name:     'Get uploaded menu image by id',
+      method:   'GET',
+      path:     `${MENU_BASE}/images/507f1f77bcf86cd799439088`,
+      expected: 404,
+      tags:     ['MENU_FAIL', 'NOT_FOUND'],
+    });
+  }
+
+  await test({
+    id:       'T68',
+    name:     'Get menu image with malformed id',
+    method:   'GET',
+    path:     `${MENU_BASE}/images/not-a-valid-id`,
+    expected: 400,
+    tags:     ['MENU_FAIL', 'TYPE'],
+  });
+
+  // =============================
+  // SESSIONS (T69–T74)
+  // =============================
+
+  {
+    const resp = await test({
+      id:       'T69',
+      name:     'Guest starts table session',
+      method:   'POST',
+      path:     `${SESSION_BASE}/start`,
+      expected: 201,
+      body:     { restaurantId: ownerRestaurantId, tableNumber: 1 },
+      tags:     [],
+    });
+    guestSessionId = resp?.session?._id ?? null;
+  }
+
+  await test({
+    id:       'T70',
+    name:     'Start session missing restaurantId',
+    method:   'POST',
+    path:     `${SESSION_BASE}/start`,
+    expected: 400,
+    body:     { tableNumber: 2 },
+    tags:     ['REQUIRED'],
+  });
+
+  if (guestSessionId && ownerRestaurantId) {
+    await test({
+      id:       'T71',
+      name:     'Get active session for table',
+      method:   'GET',
+      path:     `${SESSION_BASE}/active?restaurantId=${ownerRestaurantId}&tableNumber=1`,
+      expected: 200,
+      tags:     [],
+    });
+
+    await test({
+      id:       'T72',
+      name:     'Get session by id',
+      method:   'GET',
+      path:     `${SESSION_BASE}/${guestSessionId}`,
+      expected: 200,
+      tags:     [],
+    });
+  }
+
+  await test({
+    id:       'T73',
+    name:     'Get active session missing query params',
+    method:   'GET',
+    path:     `${SESSION_BASE}/active`,
+    expected: 400,
+    tags:     ['REQUIRED'],
+  });
+
+  await test({
+    id:       'T74',
+    name:     'Get session with malformed id',
+    method:   'GET',
+    path:     `${SESSION_BASE}/not-a-valid-id`,
+    expected: 400,
+    tags:     ['TYPE'],
+  });
+
+  // =============================
+  // CART (T75–T80)
+  // =============================
+
+  if (guestSessionId && guestMenuItemId) {
+    await test({
+      id:       'T75',
+      name:     'Get empty or new cart for session',
+      method:   'GET',
+      path:     `${CART_BASE}/${guestSessionId}`,
+      expected: 200,
+      tags:     [],
+    });
+
+    await test({
+      id:       'T76',
+      name:     'Add menu item to cart',
+      method:   'POST',
+      path:     `${CART_BASE}/${guestSessionId}/items`,
+      expected: 200,
+      body:     { menuItemId: guestMenuItemId, quantity: 2 },
+      tags:     [],
+    });
+
+    await test({
+      id:       'T77',
+      name:     'Add to cart missing menuItemId',
+      method:   'POST',
+      path:     `${CART_BASE}/${guestSessionId}/items`,
+      expected: 400,
+      body:     { quantity: 1 },
+      tags:     ['REQUIRED'],
+    });
+
+    await test({
+      id:       'T78',
+      name:     'Update cart item quantity',
+      method:   'PUT',
+      path:     `${CART_BASE}/${guestSessionId}/items/${guestMenuItemId}`,
+      expected: 200,
+      body:     { quantity: 1 },
+      tags:     [],
+    });
+
+    await test({
+      id:       'T79',
+      name:     'Remove item from cart',
+      method:   'DELETE',
+      path:     `${CART_BASE}/${guestSessionId}/items/${guestMenuItemId}`,
+      expected: 200,
+      tags:     [],
+    });
+
+    await test({
+      id:       'T80',
+      name:     'Re-add item to cart before order',
+      method:   'POST',
+      path:     `${CART_BASE}/${guestSessionId}/items`,
+      expected: 200,
+      body:     { menuItemId: guestMenuItemId, quantity: 1 },
+      tags:     [],
+    });
+
+    await test({
+      id:       'T81',
+      name:     'Get cart with malformed session id',
+      method:   'GET',
+      path:     `${CART_BASE}/not-a-valid-id`,
+      expected: 400,
+      tags:     ['TYPE'],
+    });
+  }
+
+  // =============================
+  // ORDERS (T82–T86)
+  // =============================
+
+  if (guestSessionId) {
+    {
+      const resp = await test({
+        id:       'T82',
+        name:     'Guest places order from cart',
+        method:   'POST',
+        path:     `${ORDER_BASE}/`,
+        expected: 201,
+        body:     { sessionId: guestSessionId },
+        tags:     [],
+      });
+      guestOrderId = resp?.order?._id ?? null;
+    }
+
+    if (guestOrderId) {
+      await test({
+        id:       'T83',
+        name:     'Get order by id',
+        method:   'GET',
+        path:     `${ORDER_BASE}/${guestOrderId}`,
+        expected: 200,
+        tags:     [],
+      });
+    }
+
+    await test({
+      id:       'T84',
+      name:     'Place order missing sessionId',
+      method:   'POST',
+      path:     `${ORDER_BASE}/`,
+      expected: 400,
+      body:     {},
+      tags:     ['REQUIRED'],
+    });
+
+    await test({
+      id:       'T85',
+      name:     'Get order with malformed id',
+      method:   'GET',
+      path:     `${ORDER_BASE}/not-a-valid-id`,
+      expected: 400,
+      tags:     ['TYPE'],
+    });
+  }
+
+  // Second session on table 2 for empty-cart order test
+  {
+    const resp2 = await test({
+      id:       'T86',
+      name:     'Guest starts session on table 2',
+      method:   'POST',
+      path:     `${SESSION_BASE}/start`,
+      expected: 201,
+      body:     { restaurantId: ownerRestaurantId, tableNumber: 2 },
+      tags:     [],
+    });
+    const session2Id = resp2?.session?._id ?? null;
+    if (session2Id) {
+      await test({
+        id:       'T87',
+        name:     'Place order with empty cart',
+        method:   'POST',
+        path:     `${ORDER_BASE}/`,
+        expected: 400,
+        body:     { sessionId: session2Id },
+        tags:     ['REQUIRED'],
+      });
+
+      await test({
+        id:       'T88',
+        name:     'Clear cart for session',
+        method:   'DELETE',
+        path:     `${CART_BASE}/${session2Id}`,
+        expected: 200,
+        tags:     [],
+      });
+    }
+  }
+
+  // =============================
+  // ANALYTICS (T89–T92)
+  // =============================
+
+  await test({
+    id:       'T89',
+    name:     'Owner gets analytics summary',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/summary`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T90',
+    name:     'Owner gets peak hours analytics',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/peak-hours`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T91',
+    name:     'Owner gets item forecast analytics',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/item-forecast`,
+    expected: 200,
+    token:    ownerToken,
+    tags:     [],
+  });
+
+  await test({
+    id:       'T92',
+    name:     'Analytics summary without token',
+    method:   'GET',
+    path:     `${ANALYTICS_BASE}/my/summary`,
+    expected: 401,
+    tags:     ['UNAUTHORIZED'],
+  });
+
+  // =============================
+  // SESSION CLOSE (T93–T94) — after guest flows
+  // =============================
+
+  if (guestSessionId) {
+    await test({
+      id:       'T93',
+      name:     'Owner closes guest session',
+      method:   'PATCH',
+      path:     `${SESSION_BASE}/${guestSessionId}/close`,
+      expected: 200,
+      token:    ownerToken,
+      tags:     [],
+    });
+
+    if (guestMenuItemId) {
+      await test({
+        id:       'T94',
+        name:     'Add to cart on closed session',
+        method:   'POST',
+        path:     `${CART_BASE}/${guestSessionId}/items`,
+        expected: 400,
+        body:     { menuItemId: guestMenuItemId, quantity: 1 },
+        tags:     ['REQUIRED'],
+      });
+    }
+  }
+
+  // Restore seeded owner display name after T53
+  await http('PUT', `${AUTH_BASE}/me`, { name: 'Demo Owner' }, ownerToken);
 
   // ---- FINAL OUTPUT ----
   const pass = logSummary();
