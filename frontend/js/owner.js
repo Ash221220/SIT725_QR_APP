@@ -185,11 +185,13 @@ async function loadOwnerMenu() {
     renderCategorySections();
     updateOwnerStats();
   } catch (error) {
-    tableBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="center-align red-text">${error.message}</td>
-      </tr>
-    `;
+    if (tableBody) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="7" class="center-align red-text">${escapeHtml(error.message)}</td>
+        </tr>
+      `;
+    }
   }
 }
 
