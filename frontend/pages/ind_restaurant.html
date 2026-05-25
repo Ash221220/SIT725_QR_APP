@@ -54,15 +54,40 @@
             <a href="restaurants.html" class="btn-flat">
                 <i class="material-icons left">arrow_back</i>Back to Restaurants
             </a>
+            <button id="openTablesModalBtn" type="button" class="btn teal darken-2">
+                <i class="material-icons left">table_restaurant</i>Set Tables
+            </button>
         </div>
 
         <h4 id="restaurantDetailsTitle">Restaurant Tables</h4>
+        <p class="grey-text text-darken-1">Set the number of tables to generate QR codes for customer ordering.</p>
         <div class="row" id="restaurantTablesContainer">
             <div class="col s12 center-align">
                 Loading tables...
             </div>
         </div>
 
+    </div>
+
+    <div id="tablesModal" class="modal">
+        <div class="modal-content">
+            <h5>Set Restaurant Tables</h5>
+            <p class="grey-text text-darken-1">
+                Restaurant: <strong id="selectedRestaurantName">-</strong>
+            </p>
+            <input type="hidden" id="selectedRestaurantId" />
+            <div class="input-field">
+                <input id="totalTablesInput" type="number" min="1" step="1" required />
+                <label for="totalTablesInput">Number of tables</label>
+            </div>
+            <p class="grey-text" style="font-size: 0.9rem;">
+                This replaces existing tables and regenerates QR codes for tables 1 through N.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <a href="#!" class="modal-close btn-flat">Cancel</a>
+            <button id="saveTablesBtn" type="button" class="btn teal darken-2">Save Tables</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>

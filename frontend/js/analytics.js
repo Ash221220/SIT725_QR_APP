@@ -123,7 +123,11 @@ function renderSummary(summary) {
 function renderPeakHours(peakHours) {
   const tbody = document.getElementById("analyticsPeakHoursTable");
 
-  if (!peakHours || !peakHours.peakHoursByDay) {
+  if (
+    !peakHours ||
+    !peakHours.peakHoursByDay ||
+    Object.keys(peakHours.peakHoursByDay).length === 0
+  ) {
     tbody.innerHTML = `
       <tr>
         <td colspan="3" class="center-align">No peak hour data available</td>
@@ -135,7 +139,7 @@ function renderPeakHours(peakHours) {
   tbody.innerHTML = Object.entries(peakHours.peakHoursByDay)
     .map(([day, data]) => {
       const hours = data.peakHours && data.peakHours.length
-        ? data.peakHours.map(hour => `${hour}:00`).join(", ")
+        ? data.peakHours.map(formatHourLabel).join(", ")
         : "No data";
 
       return `
@@ -147,6 +151,12 @@ function renderPeakHours(peakHours) {
       `;
     })
     .join("");
+}
+
+function formatHourLabel(hour) {
+  const startHour = String(hour).padStart(2, "0");
+  const endHour = String((hour + 1) % 24).padStart(2, "0");
+  return `${startHour}:00-${endHour}:00`;
 }
 
 function renderFoodItemsPieChart(forecast) {
