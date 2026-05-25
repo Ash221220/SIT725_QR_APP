@@ -102,60 +102,56 @@ async function getPeakHours(restaurantId, days = 30) {
     };
   }
 
-  // Group orders by day of week (0-6) and hour (0-23)
   const hourlyData = {};
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  dayNames.forEach((day) => {
-    hourlyData[day] = Array(24).fill(0); // Initialize 24 hours
-  });
-
   orders.forEach((order) => {
     const orderDate = new Date(order.createdAt);
-    const dayOfWeek = dayNames[orderDate.getUTCDay()];
-    const hour = orderDate.getUTCHours();
+    const dayOfWeek = dayNames[orderDate.getDay()];
+    const hour = orderDate.getHours();
+    if (!hourlyData[dayOfWeek]) {
+      hourlyData[dayOfWeek] = Array(24).fill(0);
+    }
     hourlyData[dayOfWeek][hour] += 1;
   });
 
-  // Calculate average for each hour and identify peak hours
   const peakHoursByDay = {};
 
   dayNames.forEach((day) => {
     const hourCounts = hourlyData[day];
-    const avgPerHour = hourCounts.reduce((a, b) => a + b, 0) / 24;
+    if (!hourCounts) return;
 
-    // Find top 3 busiest hours for this day
-    const hoursWithCounts = hourCounts.map((count, hour) => ({
-      hour,
-      count,
-      aboveAverage: count > avgPerHour,
-    }));
+    const totalOrdersForDay = hourCounts.reduce((sum, count) => sum + count, 0);
+    if (totalOrdersForDay === 0) return;
 
-    hoursWithCounts.sort((a, b) => b.count - a.count);
-    const topHours = hoursWithCounts.slice(0, 3).map((h) => h.hour);
+    const activeHours = hourCounts
+      .map((count, hour) => ({ hour, count }))
+      .filter((entry) => entry.count > 0)
+      .sort((a, b) => b.count - a.count || a.hour - b.hour);
 
-    // Calculate confidence based on variance
-    const variance =
-      hourCounts.reduce((sum, count) => sum + Math.pow(count - avgPerHour, 2), 0) / 24;
-    const stdDev = Math.sqrt(variance);
+    const topHours = activeHours.slice(0, 3).map((entry) => entry.hour);
+    const busiestHourCount = activeHours[0]?.count || 0;
     let confidence = 'Low';
 
-    if (stdDev > avgPerHour * 0.5) {
+    if (totalOrdersForDay >= 10 && busiestHourCount >= 3) {
       confidence = 'High';
-    } else if (stdDev > avgPerHour * 0.25) {
+    } else if (totalOrdersForDay >= 4 || busiestHourCount >= 2) {
       confidence = 'Medium';
     }
 
     peakHoursByDay[day] = {
       peakHours: topHours,
       confidence,
-      avgOrdersPerHour: Math.round(avgPerHour * 100) / 100,
+      totalOrders: totalOrdersForDay,
     };
   });
 
   return {
     peakHoursByDay,
     analysisWindow: `Last ${days} days`,
+    message: Object.keys(peakHoursByDay).length
+      ? undefined
+      : 'Insufficient data for peak hours analysis',
   };
 }
 
