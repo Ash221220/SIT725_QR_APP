@@ -83,6 +83,19 @@ document.addEventListener("DOMContentLoaded", () => {
     loadIndividualRestaurantTables();
   }
 
+  const openTablesModalBtn = document.getElementById("openTablesModalBtn");
+  if (openTablesModalBtn) {
+    openTablesModalBtn.addEventListener("click", () => {
+      const restaurantId = getQueryParam("id");
+      const restaurantName = getQueryParam("name") || "Restaurant";
+      if (!restaurantId) {
+        M.toast({ html: "Restaurant ID is missing from the URL." });
+        return;
+      }
+      openTablesModal(restaurantId, restaurantName);
+    });
+  }
+
   const saveTablesBtn = document.getElementById("saveTablesBtn");
   if (saveTablesBtn) {
     saveTablesBtn.addEventListener("click", saveTables);
@@ -409,7 +422,8 @@ async function loadIndividualRestaurantTables() {
       container.innerHTML = `
         <div class="col s12">
           <div class="card-panel center-align">
-            No tables found for this restaurant.
+            <p>No tables found for this restaurant.</p>
+            <p class="grey-text">Use <strong>Set Tables</strong> above to create tables and generate QR codes.</p>
           </div>
         </div>
       `;
@@ -617,6 +631,10 @@ async function saveTables() {
 
     if (document.getElementById("restaurantsTable")) {
       loadRestaurants();
+    }
+
+    if (document.getElementById("restaurantTablesContainer")) {
+      await loadIndividualRestaurantTables();
     }
   } catch (error) {
     M.toast({ html: error.message });

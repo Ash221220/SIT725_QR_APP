@@ -95,6 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     loadOwnerMenu();
+    loadOwnerTables();
     initializeAnalytics();
     loadAnalytics();
   } catch (error) {
@@ -185,12 +186,101 @@ async function loadOwnerMenu() {
     renderCategorySections();
     updateOwnerStats();
   } catch (error) {
-    tableBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="center-align red-text">${error.message}</td>
-      </tr>
+    if (tableBody) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="7" class="center-align red-text">${escapeHtml(error.message)}</td>
+        </tr>
+      `;
+    }
+  }
+}
+
+async function loadOwnerTables() {
+  const container = document.getElementById("ownerTablesContainer");
+  if (!container) return;
+
+  try {
+    const response = await ownerApiRequest("/menu/my/tables");
+    const tables = response.tables || [];
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const restaurantId = user.restaurantId || tables[0]?.restaurantId;
+    const backendBaseUrl = API_BASE_URL.replace("/api", "");
+
+    if (!tables.length) {
+      container.innerHTML = `
+        <div class="col s12">
+          <div class="card-panel center-align">
+            No tables configured yet. Contact your administrator to set up table QR codes.
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = tables
+      .map((table) => {
+        const qrUrl = getQrImageUrl(table.qrCodeUrl);
+        const menuLink = restaurantId
+          ? `${backendBaseUrl}/menu/${restaurantId}?table=${table.tableNumber}`
+          : "";
+
+        return `
+          <div class="col s12 m6 l4">
+            <div class="card table-qr-card hoverable">
+              <div class="card-content center-align">
+                <span class="card-title">Table ${escapeHtml(String(table.tableNumber || "-"))}</span>
+                <p>Status: ${table.isActive ? "Active" : "Inactive"}</p>
+                ${
+                  qrUrl
+                    ? `<img
+                         src="${escapeHtml(qrUrl)}"
+                         alt="QR Code for Table ${escapeHtml(String(table.tableNumber))}"
+                         class="qr-image"
+                         loading="lazy"
+                       />`
+                    : `<p class="red-text">QR code not available</p>`
+                }
+                ${
+                  menuLink
+                    ? `<p class="grey-text" style="font-size:0.85rem;word-break:break-all;">${escapeHtml(menuLink)}</p>`
+                    : ""
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  } catch (error) {
+    container.innerHTML = `
+      <div class="col s12">
+        <div class="card-panel red-text center-align">${escapeHtml(error.message)}</div>
+      </div>
     `;
   }
+}
+
+function getQrImageUrl(qrCodeUrl) {
+  if (!qrCodeUrl) return "";
+
+  const cleanUrl = String(qrCodeUrl).trim();
+
+  if (cleanUrl.startsWith("data:image")) {
+    return cleanUrl;
+  }
+
+  if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+    return cleanUrl;
+  }
+
+  const backendBaseUrl = API_BASE_URL.replace("/api", "");
+
+  if (cleanUrl.startsWith("/")) {
+    return `${backendBaseUrl}${cleanUrl}`;
+  }
+
+  return `${backendBaseUrl}/${cleanUrl}`;
 }
 
 function renderOwnerMenu() {
