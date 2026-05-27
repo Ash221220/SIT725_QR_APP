@@ -274,14 +274,7 @@ function renderOwners(owners) {
         </span>
       </td>
       <td>${owner.restaurantId.name || "-"}</td>
-      <td>
-        <button
-          class="btn-small red action-btn"
-          onclick="removeOwnerAccess('${owner._id}')"
-        >
-          Remove Access
-        </button>
-      </td>
+      <td>${actionCell}</td>
     </tr>
 `;
   }).join("");
