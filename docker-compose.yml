@@ -1,0 +1,23 @@
+services:
+  backend:
+    build: .
+    container_name: sit725_backend
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - MONGO_URI=mongodb://mongodb:27017/sit725_qr_app
+      - JWT_SECRET=supersecretkey
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:latest
+    container_name: sit725_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:

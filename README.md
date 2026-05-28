@@ -456,3 +456,168 @@ QA developer:
 - Admin can set tables and see QR values
 - Guest can open a QR menu with `?table=1`, add items to cart, and place an order
 
+## Dockerized Deployment
+This project has been dockerized using Docker and Docker Compose to simplify deployment and ensure consistent execution across different systems. The backend server and MongoDB database run inside separate containers managed through Docker Compose.
+
+### Dockerized Services
+
+The project contains the following Docker services:
+
+1. **backend**
+   Runs the Node.js and Express backend application.
+
+2. **mongodb**
+   Runs the MongoDB database used by the application.
+
+---
+
+## Prerequisites
+
+Before running the application, ensure the following software is installed:
+
+* Docker Desktop
+
+Check Docker installation:
+
+```bash
+docker --version
+```
+
+Check Docker Compose:
+
+```bash
+docker compose version
+```
+
+---
+
+## How to Run the Project Using Docker
+
+Run the following command from the project root directory:
+
+```bash
+docker compose up --build
+```
+
+This command will:
+
+* Build the backend Docker image
+* Start the backend container
+* Start the MongoDB container
+* Connect both containers through Docker networking
+
+---
+
+## Application URLs
+
+Backend Server:
+
+```txt
+http://localhost:5001
+```
+
+Student Endpoint:
+
+```txt
+http://localhost:5001/api/student
+```
+
+---
+
+## Environment Variables
+
+The backend container uses the following environment variables:
+
+```env
+NODE_ENV=production
+MONGO_URI=mongodb://mongodb:27017/restaurant-qr
+JWT_SECRET=secret
+BASE_URL=http://localhost:8080
+```
+
+Important:
+
+Inside Docker, MongoDB must be referenced using the service name:
+
+```txt
+mongodb
+```
+
+instead of:
+
+```txt
+localhost
+```
+
+Example:
+
+```env
+MONGO_URI=mongodb://mongodb:27017/restaurant-qr
+```
+
+---
+
+## Useful Docker Commands
+
+Start containers:
+
+```bash
+docker compose up --build
+```
+
+Stop containers:
+
+```bash
+docker compose down
+```
+
+View running containers:
+
+```bash
+docker ps
+```
+
+View all containers:
+
+```bash
+docker ps -a
+```
+
+View logs:
+
+```bash
+docker compose logs
+```
+
+Rebuild after changes:
+
+```bash
+docker compose up --build
+```
+
+---
+
+## Testing the Dockerized Application
+
+The following checks were completed after Dockerization:
+
+* Backend server starts successfully
+* MongoDB container starts successfully
+* Backend successfully connects to MongoDB
+* Signup functionality works
+* Login functionality works
+* Menu pages function correctly
+* Cart and order functionality work correctly
+* Analytics page loads successfully
+* Student endpoint returns valid JSON response
+
+Example response from student endpoint:
+
+```json
+{
+  "name": "Avinash Shankar",
+  "studentId": "YOUR_STUDENT_ID"
+}
+```
+
+---

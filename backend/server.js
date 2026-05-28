@@ -34,6 +34,13 @@ app.get('/menu/:restaurantId', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/pages', 'menu.html'));
 });
 
+app.get('/api/student', (req, res) => {
+  res.json({
+    name: 'Avinash Shankar',
+    studentId: 's225596878'
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/menu', menuRoutes);
