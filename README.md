@@ -616,8 +616,6 @@ Example response from student endpoint:
 ```json
 {
   "name": "Avinash Shankar",
-  "studentId": "YOUR_STUDENT_ID"
+  "studentId": "s225596878"
 }
 ```
-
----
